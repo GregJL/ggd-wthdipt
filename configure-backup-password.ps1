@@ -30,7 +30,7 @@ try {
     Write-Host "PostgreSQL backup credentials saved for this Windows account: $passwordFile" -ForegroundColor Green
 }
 finally {
-    if ($FromClipboard) { Set-Clipboard -Value '' }
+    if ($FromClipboard) { Set-Clipboard -Value ' ' }
     $plainPassword = $null
     $credential = $null
     $password = $null
