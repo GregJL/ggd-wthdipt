@@ -2,6 +2,18 @@
 
 **Greg's Giant Database of Where the Hell Did I Put That?** is a mobile-first household inventory app.
 
+## Automatic Windows startup
+
+After publishing the application, run `install-startup-task.ps1` from an Administrator PowerShell window. It installs the `GGD-WTHDIPT` scheduled task for the current Windows account, starts the app invisibly at sign-in, and writes application output to `logs\ggd.log`. Running the installer again safely replaces the existing task. Use `start-background-ggd.cmd` and `stop-background-ggd.cmd` for manual control, or `remove-startup-task.ps1` to remove automatic startup without deleting application data.
+
+## Nightly backups
+
+`backup-ggd.ps1` creates a PostgreSQL custom-format dump together with the photo directory, compresses them into a timestamped ZIP, keeps a local safety copy in `D:\ggd-wthdipt-backups`, and copies the archive to `H:\My Drive\GGD-Backups`. Local archives are retained for 14 days and Google Drive archives for 30 days.
+
+Before the first backup, run `configure-backup-password.ps1` and enter the PostgreSQL password. It creates the standard per-user PostgreSQL password file at `%APPDATA%\postgresql\pgpass.conf`; this file is outside the repository and is never committed to GitHub.
+
+Run `backup-ggd.ps1` manually once and verify that the ZIP appears in both destinations. Then run `install-backup-task.ps1` from an Administrator PowerShell window. The scheduled task runs every day at 3:00 AM while the Windows account is signed in and writes results to `logs\backup.log`. Google Drive for desktop must be running and `H:\My Drive\GGD-Backups` must be available when the task runs.
+
 This milestone provides a working React/TypeScript client connected to a .NET 10 ASP.NET Core + EF Core 10 + PostgreSQL API. It includes the seeded home hierarchy, item and location editing, independent edit and move locks, safe archiving and deletion, movement history, phone access over a private home network, and item/location photos stored on disk with metadata in PostgreSQL.
 
 ## Run the client
@@ -220,3 +232,40 @@ start-ggd.cmd
 ```
 
 It requires no database migration. The existing PostgreSQL database, user-secret connection string, certificates, and `D:\ggd-wthdipt-data\photos` folder remain unchanged.
+
+## Automatic background startup
+
+For this private home deployment, Task Scheduler is used as a service-equivalent rather than registering the executable as a `LocalSystem` Windows service. The task runs invisibly under the signed-in Windows account, which preserves access to the existing .NET user-secret connection string. It starts at sign-in, starts immediately when installed, and retries up to three times after an unexpected failure.
+
+First stop any manually running instance with `Ctrl+C`. Then open PowerShell **as Administrator** and run:
+
+```powershell
+cd D:\ggd-wthdipt
+powershell -ExecutionPolicy Bypass -File .\install-startup-task.ps1
+```
+
+After installation, no console window remains open. The application is available at the same address:
+
+```text
+https://192.168.68.108:5001
+```
+
+Operational helpers:
+
+```text
+stop-background-ggd.cmd     Stops the background application
+start-background-ggd.cmd    Starts it again
+logs\ggd.log                Captures startup and runtime output
+```
+
+For future application updates:
+
+1. Run `stop-background-ggd.cmd`.
+2. Run `publish-ggd.cmd`.
+3. Run `start-background-ggd.cmd`.
+
+To remove automatic startup without deleting the application, database, photos, or certificates, open PowerShell as Administrator and run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\remove-startup-task.ps1
+```
