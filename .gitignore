@@ -1,0 +1,31 @@
+*.user
+*.suo
+
+# Dependencies and generated client files
+client/node_modules/
+client/dist/
+client/*.tsbuildinfo
+
+# .NET build output
+server/bin/
+server/obj/
+
+# Published application
+publish/
+
+# Private HTTPS certificates and keys
+certs/
+
+# Runtime logs
+logs/
+
+# Local environment and secrets
+.env
+.env.*
+appsettings.Development.json
+
+# Editor and operating-system files
+.vscode/
+.vs/
+.DS_Store
+Thumbs.db
