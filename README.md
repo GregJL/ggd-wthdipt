@@ -10,7 +10,7 @@ After publishing the application, run `install-startup-task.ps1` from an Adminis
 
 `backup-ggd.ps1` creates a PostgreSQL custom-format dump together with the photo directory, compresses them into a timestamped ZIP, keeps a local safety copy in `D:\ggd-wthdipt-backups`, and copies the archive to `H:\My Drive\GGD-Backups`. Local archives are retained for 14 days and Google Drive archives for 30 days.
 
-Before the first backup, run `configure-backup-password.ps1` and enter the PostgreSQL password. It creates the standard per-user PostgreSQL password file at `%APPDATA%\postgresql\pgpass.conf`; this file is outside the repository and is never committed to GitHub.
+Before the first backup, run `configure-backup-password.ps1` and enter the PostgreSQL password. If the terminal mishandles pasted secure input, copy the password and run `configure-backup-password.ps1 -FromClipboard`; the script reads it without displaying it and immediately clears the clipboard. It creates the standard per-user PostgreSQL password file at `%APPDATA%\postgresql\pgpass.conf`; this file is outside the repository and is never committed to GitHub.
 
 Run `backup-ggd.ps1` manually once and verify that the ZIP appears in both destinations. Then run `install-backup-task.ps1` from an Administrator PowerShell window. The scheduled task runs every day at 3:00 AM while the Windows account is signed in and writes results to `logs\backup.log`. Google Drive for desktop must be running and `H:\My Drive\GGD-Backups` must be available when the task runs.
 
