@@ -38,8 +38,12 @@ export default function App() {
     return result;
   }, [current, locations]);
   const visibleItems = items.filter((item) => item.locationId === currentId);
-  const searchResults = query.trim()
-    ? items.filter((item) => item.name.toLowerCase().includes(query.toLowerCase()))
+  const searchTerm = query.trim().toLocaleLowerCase();
+  const matchingItems = searchTerm
+    ? items.filter((item) => `${item.name} ${item.note ?? ''}`.toLocaleLowerCase().includes(searchTerm))
+    : [];
+  const matchingLocations = searchTerm
+    ? locations.filter((location) => `${location.name} ${location.note ?? ''}`.toLocaleLowerCase().includes(searchTerm))
     : [];
 
   useEffect(() => {
@@ -219,7 +223,7 @@ export default function App() {
       {updateAvailable && <div className="pwa-banner update-banner"><RefreshCw size={19}/><div><strong>An update is ready</strong><span>Reload to use the newest version.</span></div><button onClick={applyPwaUpdate}>Reload</button></div>}
       {error && <div className="error-banner" role="alert"><strong>Inventory connection problem</strong><span>{error}</span></div>}
       {loading && !locations.length && <div className="loading">Opening the inventory…</div>}
-      {query ? <SearchResults items={searchResults} locations={locations} onOpen={(id) => { setCurrentId(id); setQuery(''); }} /> : <>
+      {searchTerm ? <SearchResults items={matchingItems} matches={matchingLocations} locations={locations} onOpen={(id) => { setCurrentId(id); setShowArchived(true); setQuery(''); }} /> : <>
         <nav className="breadcrumb" aria-label="Breadcrumb">
           <button onClick={() => setCurrentId(null)}><Home size={17} /> Home</button>
           {crumbs.map((crumb) => <span key={crumb.id}><ChevronRight size={15}/><button onClick={() => setCurrentId(crumb.id)}>{crumb.name}</button></span>)}
@@ -291,8 +295,21 @@ function isAvailableLocation(id: string, locations: Location[]): boolean {
   return true;
 }
 
-function SearchResults({ items, locations, onOpen }: { items: InventoryItem[]; locations: Location[]; onOpen: (id: string) => void }) {
-  return <section><div className="section-heading"><div><h2>Search results</h2><p>{items.length ? `${items.length} thing${items.length === 1 ? '' : 's'} found.` : 'No matching items. Yet.'}</p></div></div><div className="cards">{items.map((item) => { const location = locations.find((loc) => loc.id === item.locationId); return <button className="location-card" key={item.id} onClick={() => onOpen(item.locationId)}><span className="icon"><Box size={22}/></span><span><strong>{item.name}</strong><small>{location?.name ?? 'Unknown location'} · Qty {item.quantity}</small></span><ChevronRight size={21}/></button>; })}</div></section>;
+function SearchResults({ items, matches, locations, onOpen }: { items: InventoryItem[]; matches: Location[]; locations: Location[]; onOpen: (id: string) => void }) {
+  const count = items.length + matches.length;
+  return <section className="search-results">
+    <div className="section-heading"><div><h2>Search results</h2><p>{count ? `${count} result${count === 1 ? '' : 's'} found.` : 'Nothing matched. Try another name or note.'}</p></div></div>
+    {matches.length > 0 && <section aria-label="Matching locations"><h3>Locations <span>{matches.length}</span></h3><div className="cards">
+      {matches.map((location) => <button className={`location-card ${!isAvailableLocation(location.id, locations) ? 'archived-card' : ''}`} key={location.id} onClick={() => onOpen(location.id)}>
+        <span className="icon"><MapPin size={22}/></span><span><strong>{location.name}</strong><small>{locationPath(location.id, locations)}{!isAvailableLocation(location.id, locations) ? ' · Archived' : ''}</small></span><ChevronRight size={21}/>
+      </button>)}
+    </div></section>}
+    {items.length > 0 && <section aria-label="Matching items"><h3>Items <span>{items.length}</span></h3><div className="cards">
+      {items.map((item) => <button className={`location-card ${!isAvailableLocation(item.locationId, locations) ? 'archived-card' : ''}`} key={item.id} onClick={() => onOpen(item.locationId)}>
+        <span className="icon"><Box size={22}/></span><span><strong>{item.name}</strong><small>{locationPath(item.locationId, locations)} · Qty {item.quantity}{!isAvailableLocation(item.locationId, locations) ? ' · Archived' : ''}</small></span><ChevronRight size={21}/>
+      </button>)}
+    </div></section>}
+  </section>;
 }
 
 function ModalFrame({ title, subtitle, onCancel, children }: { title: string; subtitle: string; onCancel: () => void; children: React.ReactNode }) {
