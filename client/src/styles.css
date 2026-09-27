@@ -103,3 +103,9 @@ main { padding: 20px 18px 36px; }
 .modal h2 { margin: 0; font-size: 1.7rem; }.modal > p { margin: 5px 0 20px; color: #6c7771; }.close { position: absolute; right: 15px; top: 15px; border: 0; border-radius: 50%; background: #eef0eb; width: 40px; height: 40px; display: grid; place-items: center; }
 form { display: grid; gap: 15px; } form label { display: grid; gap: 6px; font-size: .85rem; font-weight: 700; } form input, form select, form textarea { width: 100%; border: 1px solid #cbc8bf; background: white; border-radius: 11px; padding: 12px; outline: 0; } form input:focus, form select:focus, form textarea:focus { border-color: #38604d; box-shadow: 0 0 0 3px #38604d18; } form textarea { min-height: 80px; resize: vertical; }.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }.submit { min-height: 50px; border: 0; border-radius: 13px; font-weight: 700; margin-top: 4px; }
 @media (min-width: 640px) { header { padding-left: 30px; padding-right: 30px; }.cards { grid-template-columns: 1fr 1fr; }.photo-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }.modal-backdrop { align-items: center; }.modal { border-radius: 26px; } }
+
+.search-results section { margin-top: 24px; }
+.search-results h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+.search-results h3 span { font-size: .85rem; color: #69756f; }
+.search-results .location-card > span:nth-child(2) { min-width: 0; }
+.search-results .location-card small { overflow-wrap: anywhere; text-transform: none; line-height: 1.4; }
