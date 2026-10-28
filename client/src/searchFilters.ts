@@ -31,7 +31,7 @@ export function filterInventory(items: InventoryItem[], locations: Location[], q
   const photographedLocations = new Set(targets?.locationIds);
   const matchesChoice = (choice: Choice, value: boolean) => choice === 'all' || value === (choice === 'yes');
   const matches = (entry: InventoryItem | Location, isArchived: boolean, hasPhoto: boolean) =>
-    `${entry.name} ${entry.note ?? ''}`.toLocaleLowerCase().includes(term)
+    `${entry.name} ${entry.note ?? ''} ${'quantity' in entry ? [entry.category, entry.brand, entry.model, entry.serialNumber, entry.condition, entry.warrantyNotes, entry.purchaseDate, entry.warrantyExpiresOn, entry.purchasePrice, entry.replacementValue, ...(entry.tags ?? [])].join(' ') : ''}`.toLocaleLowerCase().includes(term)
     && matchesChoice(filters.archive, isArchived)
     && matchesChoice(filters.editLock, entry.isEditLocked)
     && matchesChoice(filters.moveLock, entry.isMoveLocked)

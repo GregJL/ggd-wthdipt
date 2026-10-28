@@ -253,21 +253,24 @@ items.MapGet("/", async (Guid workspaceId, Guid? locationId, string? query, Inve
     if (locationId is not null) result = result.Where(x => x.LocationId == locationId);
     if (!string.IsNullOrWhiteSpace(query)) result = result.Where(x => x.Name.Contains(query));
     return await result.OrderBy(x => x.Name)
-        .Select(x => new ItemResponse(x.Id, x.WorkspaceId, x.LocationId, x.Name, x.Quantity, x.IsMoveLocked, x.IsEditLocked, x.Note, x.CreatedAt))
+        .Select(x => ItemResponse.From(x))
         .ToListAsync();
 });
 items.MapPost("/", async (CreateItemRequest request, InventoryDbContext db) =>
 {
     if (string.IsNullOrWhiteSpace(request.Name) || request.Quantity < 1) return Results.BadRequest("A name and positive quantity are required.");
+    if (ItemDetailsValidation.Error(request) is string detailsError) return Results.BadRequest(detailsError);
     if (!await IsLocationAvailable(request.LocationId, request.WorkspaceId, db))
         return Results.BadRequest("Location is unavailable or archived.");
     var item = new InventoryItem { WorkspaceId = request.WorkspaceId, LocationId = request.LocationId, Name = request.Name.Trim(), Quantity = request.Quantity, Note = request.Note?.Trim() };
+    ItemDetailsValidation.Apply(item, request);
     db.Items.Add(item); await db.SaveChangesAsync();
-    return Results.Created($"/api/items/{item.Id}", new ItemResponse(item.Id, item.WorkspaceId, item.LocationId, item.Name, item.Quantity, item.IsMoveLocked, item.IsEditLocked, item.Note, item.CreatedAt));
+    return Results.Created($"/api/items/{item.Id}", ItemResponse.From(item));
 });
 items.MapPatch("/{id:guid}", async (Guid id, UpdateItemRequest request, InventoryDbContext db) =>
 {
     if (string.IsNullOrWhiteSpace(request.Name) || request.Quantity < 1) return Results.BadRequest("A name and positive quantity are required.");
+    if (ItemDetailsValidation.Error(request) is string detailsError) return Results.BadRequest(detailsError);
     var item = await db.Items.FirstOrDefaultAsync(x => x.Id == id && x.WorkspaceId == request.WorkspaceId);
     if (item is null) return Results.NotFound();
     if (item.IsEditLocked) return Results.Conflict("Unlock editing for this item before changing it.");
@@ -275,8 +278,9 @@ items.MapPatch("/{id:guid}", async (Guid id, UpdateItemRequest request, Inventor
     item.Name = request.Name.Trim();
     item.Quantity = request.Quantity;
     item.Note = request.Note?.Trim();
+    ItemDetailsValidation.Apply(item, request);
     await db.SaveChangesAsync();
-    return Results.Ok(new ItemResponse(item.Id, item.WorkspaceId, item.LocationId, item.Name, item.Quantity, item.IsMoveLocked, item.IsEditLocked, item.Note, item.CreatedAt));
+    return Results.Ok(ItemResponse.From(item));
 });
 items.MapPatch("/{id:guid}/edit-lock", async (Guid id, SetEditLockRequest request, InventoryDbContext db) =>
 {
@@ -284,7 +288,7 @@ items.MapPatch("/{id:guid}/edit-lock", async (Guid id, SetEditLockRequest reques
     if (item is null) return Results.NotFound();
     item.IsEditLocked = request.IsEditLocked;
     await db.SaveChangesAsync();
-    return Results.Ok(new ItemResponse(item.Id, item.WorkspaceId, item.LocationId, item.Name, item.Quantity, item.IsMoveLocked, item.IsEditLocked, item.Note, item.CreatedAt));
+    return Results.Ok(ItemResponse.From(item));
 });
 items.MapPatch("/{id:guid}/move-lock", async (Guid id, SetMoveLockRequest request, InventoryDbContext db) =>
 {
@@ -292,7 +296,7 @@ items.MapPatch("/{id:guid}/move-lock", async (Guid id, SetMoveLockRequest reques
     if (item is null) return Results.NotFound();
     item.IsMoveLocked = request.IsMoveLocked;
     await db.SaveChangesAsync();
-    return Results.Ok(new ItemResponse(item.Id, item.WorkspaceId, item.LocationId, item.Name, item.Quantity, item.IsMoveLocked, item.IsEditLocked, item.Note, item.CreatedAt));
+    return Results.Ok(ItemResponse.From(item));
 });
 items.MapPatch("/{id:guid}/move", async (Guid id, MoveItemRequest request, InventoryDbContext db) =>
 {
@@ -314,7 +318,7 @@ items.MapPatch("/{id:guid}/move", async (Guid id, MoveItemRequest request, Inven
     item.LocationId = request.DestinationLocationId;
     await db.SaveChangesAsync();
     await transaction.CommitAsync();
-    return Results.Ok(new ItemResponse(item.Id, item.WorkspaceId, item.LocationId, item.Name, item.Quantity, item.IsMoveLocked, item.IsEditLocked, item.Note, item.CreatedAt));
+    return Results.Ok(ItemResponse.From(item));
 });
 items.MapGet("/{id:guid}/history", async (Guid id, Guid workspaceId, InventoryDbContext db) =>
 {

@@ -12,7 +12,21 @@ export interface Location {
   note?: string;
 }
 
-export interface InventoryItem {
+export interface ItemMetadata {
+  category?: string | null;
+  tags?: string[];
+  brand?: string | null;
+  model?: string | null;
+  serialNumber?: string | null;
+  purchaseDate?: string | null;
+  purchasePrice?: number | null;
+  replacementValue?: number | null;
+  warrantyExpiresOn?: string | null;
+  warrantyNotes?: string | null;
+  condition?: string | null;
+}
+export interface ItemDraft extends ItemMetadata { name: string; quantity: number; note?: string }
+export interface InventoryItem extends ItemMetadata {
   id: string;
   workspaceId: string;
   locationId: string;

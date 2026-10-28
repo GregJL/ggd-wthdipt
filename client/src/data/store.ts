@@ -34,7 +34,7 @@ export const store = {
     return request<InventoryItem>('/items', { method: 'POST', body: JSON.stringify(item) });
   },
   updateItem(item: InventoryItem): Promise<InventoryItem> {
-    return request<InventoryItem>(`/items/${item.id}`, { method: 'PATCH', body: JSON.stringify({ workspaceId: item.workspaceId, name: item.name, quantity: item.quantity, note: item.note }) });
+    return request<InventoryItem>(`/items/${item.id}`, { method: 'PATCH', body: JSON.stringify({ workspaceId: item.workspaceId, name: item.name, quantity: item.quantity, note: item.note, category: item.category ?? null, tags: item.tags ?? [], brand: item.brand ?? null, model: item.model ?? null, serialNumber: item.serialNumber ?? null, purchaseDate: item.purchaseDate ?? null, purchasePrice: item.purchasePrice ?? null, replacementValue: item.replacementValue ?? null, warrantyExpiresOn: item.warrantyExpiresOn ?? null, warrantyNotes: item.warrantyNotes ?? null, condition: item.condition ?? null }) });
   },
   deleteItem(workspaceId: string, itemId: string): Promise<void> {
     const query = new URLSearchParams({ workspaceId });

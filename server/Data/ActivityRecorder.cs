@@ -120,9 +120,11 @@ internal static class ActivityRecorder
         var label = property.Metadata.Name switch
         {
             "IsEditLocked" => "Edit lock", "IsMoveLocked" => "Move lock",
-            "Kind" => "Type", "Note" => "Notes", _ => property.Metadata.Name
+            "Kind" => "Type", "Note" => "Notes", "SerialNumber" => "Serial number",
+            "PurchaseDate" => "Purchase date", "PurchasePrice" => "Purchase price (USD each)",
+            "ReplacementValue" => "Replacement value (USD each)", "WarrantyExpiresOn" => "Warranty ends", "WarrantyNotes" => "Warranty notes", _ => property.Metadata.Name
         };
-        static string Value(object? value) => value switch { null => "(empty)", "" => "(empty)", bool b => b ? "Locked" : "Unlocked", _ => value.ToString()! };
+        static string Value(object? value) => value switch { null => "(empty)", "" => "(empty)", bool b => b ? "Locked" : "Unlocked", IEnumerable<string> tags => string.Join(", ", tags), DateOnly date => date.ToString("yyyy-MM-dd"), decimal amount => amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), _ => value.ToString()! };
         return $"{label}: {Value(property.OriginalValue)} → {Value(property.CurrentValue)}";
     }
 }

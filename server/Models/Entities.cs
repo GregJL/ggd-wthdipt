@@ -54,6 +54,17 @@ public sealed class InventoryItem {
     public bool IsMoveLocked { get; set; }
     public bool IsEditLocked { get; set; }
     public string? Note { get; set; }
+    public string? Category { get; set; }
+    public string[] Tags { get; set; } = [];
+    public string? Brand { get; set; }
+    public string? Model { get; set; }
+    public string? SerialNumber { get; set; }
+    public DateOnly? PurchaseDate { get; set; }
+    public decimal? PurchasePrice { get; set; }
+    public decimal? ReplacementValue { get; set; }
+    public DateOnly? WarrantyExpiresOn { get; set; }
+    public string? WarrantyNotes { get; set; }
+    public string? Condition { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public Location Location { get; set; } = null!;
     public ICollection<ItemMovement> Movements { get; set; } = [];

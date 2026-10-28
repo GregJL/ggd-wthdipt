@@ -59,6 +59,14 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
         modelBuilder.Entity<WorkspaceMember>().HasIndex(x => new { x.UserId, x.WorkspaceId }).IsUnique();
         modelBuilder.Entity<Location>().HasOne(x => x.Parent).WithMany(x => x.Children).HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Location>().HasIndex(x => new { x.WorkspaceId, x.ParentId, x.Name }).IsUnique();
+        modelBuilder.Entity<InventoryItem>().Property(x => x.Category).HasMaxLength(100);
+        modelBuilder.Entity<InventoryItem>().Property(x => x.Brand).HasMaxLength(100);
+        modelBuilder.Entity<InventoryItem>().Property(x => x.Model).HasMaxLength(200);
+        modelBuilder.Entity<InventoryItem>().Property(x => x.SerialNumber).HasMaxLength(200);
+        modelBuilder.Entity<InventoryItem>().Property(x => x.WarrantyNotes).HasMaxLength(2000);
+        modelBuilder.Entity<InventoryItem>().Property(x => x.Condition).HasMaxLength(100);
+        modelBuilder.Entity<InventoryItem>().Property(x => x.PurchasePrice).HasPrecision(12, 2);
+        modelBuilder.Entity<InventoryItem>().Property(x => x.ReplacementValue).HasPrecision(12, 2);
         modelBuilder.Entity<InventoryItem>().HasOne(x => x.Location).WithMany(x => x.Items).HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<ItemMovement>().HasOne(x => x.Item).WithMany(x => x.Movements).HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<LocationMovement>().HasOne(x => x.Location).WithMany(x => x.Movements).HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Cascade);
