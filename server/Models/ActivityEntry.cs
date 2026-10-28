@@ -3,6 +3,8 @@ namespace Ggd.Api.Models;
 // Deliberately has no foreign keys to inventory entities: history survives deletion.
 public sealed class ActivityEntry
 {
+    public Guid? ActorUserId { get; set; }
+    public string? ActorName { get; set; }
     public long Id { get; set; }
     public Guid WorkspaceId { get; set; }
     public string SubjectType { get; set; } = "";

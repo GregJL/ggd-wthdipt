@@ -5,12 +5,13 @@ import { store } from './data/store';
 import { applyPwaUpdate } from './pwa';
 import InventorySearch from './InventorySearch';
 import ActivityHistory from './ActivityHistory';
-import type { ActivitySubject, InventoryItem, InventoryPhoto, Location, LocationDeletionImpact, LocationStatus, MovementHistoryEntry } from './types';
+import AccountSettings from './AccountSettings';
+import type { AccountUser, ActivitySubject, InventoryItem, InventoryPhoto, Location, LocationDeletionImpact, LocationStatus, MovementHistoryEntry } from './types';
 
-type Modal = 'activity' | 'location' | 'item' | 'editItem' | 'editLocation' | 'moveItem' | 'moveLocation' | 'removeLocation' | 'history' | 'photos' | null;
+type Modal = 'account' | 'activity' | 'location' | 'item' | 'editItem' | 'editLocation' | 'moveItem' | 'moveLocation' | 'removeLocation' | 'history' | 'photos' | null;
 type PhotoTarget = { kind: 'item'; id: string; name: string } | { kind: 'location'; id: string; name: string };
 
-export default function App() {
+export default function App({ account, onSignOut }: { account: AccountUser; onSignOut: () => Promise<void> }) {
   const [locations, setLocations] = useState<Location[]>([]);
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -216,6 +217,7 @@ export default function App() {
       <label className="search"><Search size={20} /><input value={query} onChange={(e) => { setQuery(e.target.value); if (e.target.value.trim()) setSearchOpen(true); }} placeholder="Find anything…" aria-label="Search inventory" />{query && <button onClick={() => setQuery('')} aria-label="Clear search"><X size={18}/></button>}</label>
       <button className="search-filter-toggle" onClick={() => setSearchOpen(true)}>Search filters</button>
       <button className="search-filter-toggle" onClick={() => openActivity()}><Clock3 size={16}/> Activity history</button>
+      <button className="search-filter-toggle" onClick={() => setModal('account')}>{account.displayName} · Account</button>
     </header>
 
     <main>
@@ -257,6 +259,7 @@ export default function App() {
     </main>
 
     <div className="actions"><button disabled={current?.status === 'inactive'} onClick={() => setModal('location')}><Plus size={20}/> Add location</button><button className="primary" disabled={!currentId || current?.status === 'inactive'} onClick={() => setModal('item')}><Plus size={20}/> Add item</button></div>
+    {modal === 'account' && <AccountSettings account={account} onSignOut={onSignOut} onClose={() => setModal(null)}/>}
     {modal === 'activity' && <ActivityHistory subject={activitySubject} onClose={() => setModal(null)}/>}
     {modal === 'location' && <LocationForm parentName={current?.name ?? 'Your Home'} onCancel={() => setModal(null)} onSubmit={addLocation}/>} 
     {modal === 'editLocation' && current && <LocationForm parentName={locationPath(current.parentId, locations)} initial={current} onCancel={() => setModal(null)} onSubmit={editLocation}/>} 

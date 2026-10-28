@@ -1,11 +1,13 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using System.Security.Claims;
 using Ggd.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ggd.Api.Data;
 
-public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> options) : DbContext(options)
+public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> options, IHttpContextAccessor? httpContextAccessor = null) : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>(options)
 {
-    public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<Workspace> Workspaces => Set<Workspace>();
     public DbSet<WorkspaceMember> WorkspaceMembers => Set<WorkspaceMember>();
     public DbSet<Location> Locations => Set<Location>();
@@ -22,6 +24,14 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         var activity = await ActivityRecorder.CaptureAsync(this, cancellationToken);
+        var principal = httpContextAccessor?.HttpContext?.User;
+        if (activity.Count > 0 && principal?.Identity?.IsAuthenticated == true &&
+            Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var actorId))
+        {
+            var actor = await Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == actorId, cancellationToken);
+            if (actor is not null)
+                foreach (var entry in activity) { entry.ActorUserId = actor.Id; entry.ActorName = actor.DisplayName; }
+        }
         ActivityEntries.AddRange(activity);
         try
         {
@@ -37,6 +47,9 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<AppUser>().ToTable("Users");
+        modelBuilder.Entity<AppUser>().Property(x => x.Email).HasColumnType("text").IsRequired().Metadata.SetMaxLength(null);
         modelBuilder.Entity<ActivityEntry>().HasIndex(x => new { x.WorkspaceId, x.Id });
         modelBuilder.Entity<ActivityEntry>().HasIndex(x => new { x.WorkspaceId, x.SubjectType, x.SubjectId, x.Id });
         modelBuilder.Entity<AppUser>().HasIndex(x => x.Email).IsUnique();

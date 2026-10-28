@@ -1,3 +1,8 @@
+using Ggd.Api.Security;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.DataProtection;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using Ggd.Api.Contracts;
 using Ggd.Api.Data;
 using Ggd.Api.Models;
@@ -15,14 +20,63 @@ builder.Configuration.AddUserSecrets(
     System.Reflection.Assembly.GetExecutingAssembly(),
     optional: true);
 builder.Services.AddDbContext<InventoryDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("Inventory")));
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddAuthorization();
+builder.Services.AddIdentity<AppUser, IdentityRole<Guid>>(options =>
+{
+    options.User.RequireUniqueEmail = true;
+    options.Password.RequiredLength = 12;
+    options.Password.RequiredUniqueChars = 4;
+    options.Password.RequireDigit = false;
+    options.Password.RequireLowercase = false;
+    options.Password.RequireUppercase = false;
+    options.Password.RequireNonAlphanumeric = false;
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    options.Lockout.MaxFailedAccessAttempts = 5;
+}).AddEntityFrameworkStores<InventoryDbContext>().AddDefaultTokenProviders();
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Cookie.Name = "__Host-GGD-Session";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.ExpireTimeSpan = TimeSpan.FromDays(14);
+    options.SlidingExpiration = true;
+    options.Events.OnRedirectToLogin = context => { context.Response.StatusCode = 401; return Task.CompletedTask; };
+    options.Events.OnRedirectToAccessDenied = context => { context.Response.StatusCode = 403; return Task.CompletedTask; };
+});
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-GGD-CSRF";
+    options.Cookie.Name = "__Host-GGD-CSRF";
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+});
+var keysPath = builder.Configuration["DataProtection:KeysPath"] ?? Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GGD-WTHDIPT", "DataProtection-Keys");
+Directory.CreateDirectory(keysPath);
+var protection = builder.Services.AddDataProtection().SetApplicationName("GGD-WTHDIPT").PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+if (OperatingSystem.IsWindows()) protection.ProtectKeysWithDpapi();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = 429;
+    options.AddPolicy("account", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "local", _ => new FixedWindowRateLimiterOptions
+        { PermitLimit = 15, Window = TimeSpan.FromMinutes(5), QueueLimit = 0 }));
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
-builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.AllowAnyHeader().AllowAnyMethod().SetIsOriginAllowed(IsDevelopmentClientOrigin)));
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.AllowAnyHeader().AllowAnyMethod().SetIsOriginAllowed(IsDevelopmentClientOrigin).AllowCredentials()));
 
 var app = builder.Build();
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
+app.UseMiddleware<InventoryAccessMiddleware>();
+app.MapAccountEndpoints();
 app.UseDefaultFiles();
 var staticContentTypes = new FileExtensionContentTypeProvider();
 staticContentTypes.Mappings[".webmanifest"] = "application/manifest+json";
@@ -357,6 +411,8 @@ locations.MapDelete("/{id:guid}", async (Guid id, Guid workspaceId, InventoryDbC
     return Results.NoContent();
 });
 
+app.Map("/api/{**path}", () => Results.NotFound());
+
 // React owns client-side routes; API endpoints above retain priority.
 app.MapFallbackToFile("index.html");
 
@@ -406,3 +462,5 @@ static async Task<bool> IsLocationAvailable(Guid id, Guid workspaceId, Inventory
     }
     return true;
 }
+
+public partial class Program { }

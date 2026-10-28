@@ -58,6 +58,8 @@ export interface MovementHistoryEntry {
 
 export interface ActivitySubject { kind: 'item' | 'location'; id: string; name: string }
 export interface ActivityEntry {
+  actorUserId: string | null;
+  actorName: string | null;
   id: number;
   workspaceId: string;
   subjectType: 'item' | 'location';
@@ -70,3 +72,6 @@ export interface ActivityEntry {
   recordedAt: string;
 }
 export interface ActivityPage { entries: ActivityEntry[]; hasMore: boolean }
+
+export interface AccountUser { id: string; email: string; displayName: string; workspaceId: string }
+export interface AccountSession { user: AccountUser | null; setupRequired: boolean; setupAvailable: boolean; csrfToken: string }

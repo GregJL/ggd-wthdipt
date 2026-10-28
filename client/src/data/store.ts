@@ -1,25 +1,7 @@
 import type { PhotoTargets } from '../searchFilters';
 import type { ActivityPage, ActivitySubject, InventoryItem, InventoryPhoto, Location, LocationDeletionImpact, MovementHistoryEntry } from '../types';
 
-const developmentApiPort = window.location.protocol === 'https:' ? '5001' : '5000';
-const defaultApiUrl = import.meta.env.DEV
-  ? `${window.location.protocol}//${window.location.hostname}:${developmentApiPort}/api`
-  : `${window.location.origin}/api`;
-const API_URL = import.meta.env.VITE_API_URL || defaultApiUrl;
-
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const isForm = options?.body instanceof FormData;
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: { ...(isForm ? {} : { 'Content-Type': 'application/json' }), ...options?.headers },
-  });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `Request failed with status ${response.status}`);
-  }
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
-}
+import { API_URL, request } from './http';
 
 export const store = {
   activity(workspaceId: string, subject: ActivitySubject | null, beforeId?: number): Promise<ActivityPage> {
