@@ -21,6 +21,12 @@ builder.Configuration.AddUserSecrets(
     optional: true);
 builder.Services.AddDbContext<InventoryDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("Inventory")));
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddSingleton<GmailRecoveryEmail>();
+builder.Services.AddSingleton<IRecoveryEmail>(services => services.GetRequiredService<GmailRecoveryEmail>());
+builder.Services.AddHostedService(services => services.GetRequiredService<GmailRecoveryEmail>());
+builder.Services.AddScoped<PasswordRecoveryService>();
+builder.Services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.Zero);
 builder.Services.AddAuthorization();
 builder.Services.AddIdentity<AppUser, IdentityRole<Guid>>(options =>
 {
@@ -60,6 +66,12 @@ if (OperatingSystem.IsWindows()) protection.ProtectKeysWithDpapi();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = 429;
+    options.AddPolicy("recovery-request", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "local", _ => new FixedWindowRateLimiterOptions
+        { PermitLimit = 5, Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
+    options.AddPolicy("recovery-reset", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "local", _ => new FixedWindowRateLimiterOptions
+        { PermitLimit = 10, Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
     options.AddPolicy("account", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "local", _ => new FixedWindowRateLimiterOptions
         { PermitLimit = 15, Window = TimeSpan.FromMinutes(5), QueueLimit = 0 }));

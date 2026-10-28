@@ -9,6 +9,12 @@ export const auth = {
       setCsrfToken(session.csrfToken); return session;
     }).finally(() => { pendingSession = null; });
   },
+  requestRecovery(email: string) {
+    return request<{ message: string }>('/auth/recovery/request', { method: 'POST', body: JSON.stringify({ email }) });
+  },
+  resetPassword(email: string, code: string, newPassword: string) {
+    return request<void>('/auth/recovery/reset', { method: 'POST', body: JSON.stringify({ email, code, newPassword }) });
+  },
   login(email: string, password: string, rememberMe: boolean) {
     return request<void>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, rememberMe }) });
   },

@@ -116,6 +116,7 @@ internal static class AuthChecks
             var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
             Check((await db.Users.SingleAsync()).LockoutEnd > DateTimeOffset.UtcNow, "failed attempts activate lockout");
         }
+        await RecoveryChecks.RunAsync();
         Console.WriteLine("PASS: setup code, one-time claim, owner preservation, password hashing/change, cookies, CSRF, household isolation, spoof prevention, actor attribution, legacy history, photo access, login/logout, and lockout.");
     }
     private static void Token(HttpClient client, JsonElement session)

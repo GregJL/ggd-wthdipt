@@ -16,6 +16,7 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
     public DbSet<LocationMovement> LocationMovements => Set<LocationMovement>();
     public DbSet<InventoryPhoto> Photos => Set<InventoryPhoto>();
 
+    public DbSet<PasswordRecovery> PasswordRecoveries => Set<PasswordRecovery>();
     public DbSet<ActivityEntry> ActivityEntries => Set<ActivityEntry>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess) =>
@@ -48,6 +49,8 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<PasswordRecovery>().HasKey(x => x.UserId);
+        modelBuilder.Entity<PasswordRecovery>().HasOne<AppUser>().WithOne().HasForeignKey<PasswordRecovery>(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<AppUser>().ToTable("Users");
         modelBuilder.Entity<AppUser>().Property(x => x.Email).HasColumnType("text").IsRequired().Metadata.SetMaxLength(null);
         modelBuilder.Entity<ActivityEntry>().HasIndex(x => new { x.WorkspaceId, x.Id });

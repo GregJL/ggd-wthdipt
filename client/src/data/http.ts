@@ -15,7 +15,8 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
   });
   if (!response.ok) {
     if (response.status === 401 && !path.startsWith('/auth/')) window.dispatchEvent(new Event('ggd-auth-expired'));
-    const detail = await response.text();
+    let detail = await response.text();
+    try { const parsed = JSON.parse(detail); if (typeof parsed === 'string') detail = parsed; } catch { /* Plain-text API message. */ }
     throw new Error(response.status === 429 ? 'Too many attempts. Please wait a few minutes and try again.'
       : detail && detail.length < 500 && !detail.startsWith('{') && !detail.startsWith('<') ? detail : `Request failed (${response.status}). Please try again.`);
   }

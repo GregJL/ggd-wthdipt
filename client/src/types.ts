@@ -74,4 +74,4 @@ export interface ActivityEntry {
 export interface ActivityPage { entries: ActivityEntry[]; hasMore: boolean }
 
 export interface AccountUser { id: string; email: string; displayName: string; workspaceId: string }
-export interface AccountSession { user: AccountUser | null; setupRequired: boolean; setupAvailable: boolean; csrfToken: string }
+export interface AccountSession { recoveryAvailable: boolean; user: AccountUser | null; setupRequired: boolean; setupAvailable: boolean; csrfToken: string }
