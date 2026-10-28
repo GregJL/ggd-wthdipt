@@ -55,3 +55,18 @@ export interface MovementHistoryEntry {
   toLocationName: string;
   movedAt: string;
 }
+
+export interface ActivitySubject { kind: 'item' | 'location'; id: string; name: string }
+export interface ActivityEntry {
+  id: number;
+  workspaceId: string;
+  subjectType: 'item' | 'location';
+  subjectId: string;
+  subjectName: string;
+  action: string;
+  summary: string;
+  details: string;
+  locationPath: string;
+  recordedAt: string;
+}
+export interface ActivityPage { entries: ActivityEntry[]; hasMore: boolean }

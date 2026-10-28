@@ -4,9 +4,10 @@ import { WORKSPACE_ID } from './data/seed';
 import { store } from './data/store';
 import { applyPwaUpdate } from './pwa';
 import InventorySearch from './InventorySearch';
-import type { InventoryItem, InventoryPhoto, Location, LocationDeletionImpact, LocationStatus, MovementHistoryEntry } from './types';
+import ActivityHistory from './ActivityHistory';
+import type { ActivitySubject, InventoryItem, InventoryPhoto, Location, LocationDeletionImpact, LocationStatus, MovementHistoryEntry } from './types';
 
-type Modal = 'location' | 'item' | 'editItem' | 'editLocation' | 'moveItem' | 'moveLocation' | 'removeLocation' | 'history' | 'photos' | null;
+type Modal = 'activity' | 'location' | 'item' | 'editItem' | 'editLocation' | 'moveItem' | 'moveLocation' | 'removeLocation' | 'history' | 'photos' | null;
 type PhotoTarget = { kind: 'item'; id: string; name: string } | { kind: 'location'; id: string; name: string };
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [modal, setModal] = useState<Modal>(null);
+  const [activitySubject, setActivitySubject] = useState<ActivitySubject | null>(null);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -62,6 +64,7 @@ export default function App() {
     return () => { window.removeEventListener('online', online); window.removeEventListener('offline', offline); window.removeEventListener('ggd-pwa-update', update); };
   }, []);
 
+  function openActivity(subject: ActivitySubject | null = null) { setActivitySubject(subject); setModal('activity'); }
   function goBack() { setCurrentId(current?.parentId ?? null); }
   async function addLocation(name: string, type: Location['type'], status: LocationStatus, note: string) {
     try {
@@ -212,6 +215,7 @@ export default function App() {
       <h1>Where the hell did I put that?</h1>
       <label className="search"><Search size={20} /><input value={query} onChange={(e) => { setQuery(e.target.value); if (e.target.value.trim()) setSearchOpen(true); }} placeholder="Find anything…" aria-label="Search inventory" />{query && <button onClick={() => setQuery('')} aria-label="Clear search"><X size={18}/></button>}</label>
       <button className="search-filter-toggle" onClick={() => setSearchOpen(true)}>Search filters</button>
+      <button className="search-filter-toggle" onClick={() => openActivity()}><Clock3 size={16}/> Activity history</button>
     </header>
 
     <main>
@@ -228,9 +232,9 @@ export default function App() {
           <div>{current && <button className="back" onClick={goBack}><ArrowLeft size={20}/> Back</button>}<h2>{current?.name ?? 'Your Home'}</h2><p>{current?.note ?? (current ? 'Choose a location or see what is stored here.' : 'Choose a floor to start exploring.')}</p></div>
           {current?.status && current.status !== 'active' && <span className={`status ${current.status}`}>{current.status}</span>}
         </section>
-        {current?.status === 'inactive' ? <div className="location-actions"><button onClick={() => openPhotos({ kind: 'location', id: current.id, name: current.name })}><Camera size={17}/> Photos</button><button onClick={openLocationHistory}><History size={17}/> Movement history</button><button className="restore-button" onClick={restoreLocation}><RotateCcw size={17}/> Restore location</button></div> : current && <div className="location-actions">
+        {current?.status === 'inactive' ? <div className="location-actions"><button onClick={() => openPhotos({ kind: 'location', id: current.id, name: current.name })}><Camera size={17}/> Photos</button><button onClick={() => current && openActivity({ kind: 'location', id: current.id, name: current.name })}><Clock3 size={17}/> Activity history</button><button onClick={openLocationHistory}><History size={17}/> Movement history</button><button className="restore-button" onClick={restoreLocation}><RotateCcw size={17}/> Restore location</button></div> : current && <div className="location-actions">
           <button onClick={() => openPhotos({ kind: 'location', id: current.id, name: current.name })}><Camera size={17}/> Photos</button>
-          <button onClick={openLocationHistory}><History size={17}/> Movement history</button>
+          <button onClick={() => current && openActivity({ kind: 'location', id: current.id, name: current.name })}><Clock3 size={17}/> Activity history</button><button onClick={openLocationHistory}><History size={17}/> Movement history</button>
           <button disabled={current.isEditLocked} onClick={() => setModal('editLocation')}><Pencil size={17}/> Edit location</button>
           <button onClick={toggleLocationEditLock}>{current.isEditLocked ? <><Pencil size={17}/> Unlock edits</> : <><PencilOff size={17}/> Lock edits</>}</button>
           <button onClick={toggleLocationLock}>{current.isMoveLocked ? <><Unlock size={17}/> Unlock location</> : <><Lock size={17}/> Lock location</>}</button>
@@ -247,12 +251,13 @@ export default function App() {
         </div>
 
         {current && <section className="items"><div className="items-title"><h3>Items here</h3><span>{visibleItems.length}</span></div>
-          {visibleItems.length ? visibleItems.map((item) => <article key={item.id}><Box size={22}/><div><strong>{item.name}</strong><small>Qty {item.quantity}{item.note ? ` · ${item.note}` : ''}</small></div><div className="item-actions"><button onClick={() => openPhotos({ kind: 'item', id: item.id, name: item.name })} aria-label={`Photos for ${item.name}`} title="Photos"><Camera size={19}/></button><button onClick={() => openItemHistory(item)} aria-label={`Movement history for ${item.name}`} title="Movement history"><History size={19}/></button><button disabled={item.isEditLocked} onClick={() => { setSelectedItem(item); setModal('editItem'); }} aria-label={`Edit ${item.name}`} title={`Edit ${item.name}`}><Pencil size={19}/></button><button onClick={() => toggleItemEditLock(item)} aria-label={`${item.isEditLocked ? 'Unlock' : 'Lock'} editing for ${item.name}`} title={`${item.isEditLocked ? 'Unlock' : 'Lock'} editing`}>{item.isEditLocked ? <Pencil size={19}/> : <PencilOff size={19}/>}</button><button onClick={() => toggleItemLock(item)} aria-label={`${item.isMoveLocked ? 'Unlock' : 'Lock'} movement for ${item.name}`} title={`${item.isMoveLocked ? 'Unlock' : 'Lock'} movement`}>{item.isMoveLocked ? <Lock size={19}/> : <Unlock size={19}/>}</button><button disabled={item.isMoveLocked} onClick={() => { setSelectedItem(item); setModal('moveItem'); }} aria-label={`Move ${item.name}`} title={`Move ${item.name}`}><MoveRight size={19}/></button><button className="delete-item" onClick={() => deleteItem(item)} aria-label={`Delete ${item.name}`} title={`Delete ${item.name}`}><Trash2 size={19}/></button></div></article>) : <div className="empty"><Box size={32}/><p>Nothing inventoried here yet.</p><span>That does not mean nothing is hiding here.</span></div>}
+          {visibleItems.length ? visibleItems.map((item) => <article key={item.id}><Box size={22}/><div><strong>{item.name}</strong><small>Qty {item.quantity}{item.note ? ` · ${item.note}` : ''}</small></div><div className="item-actions"><button onClick={() => openActivity({ kind: 'item', id: item.id, name: item.name })} aria-label={`Activity history for ${item.name}`} title="Activity history"><Clock3 size={19}/></button><button onClick={() => openPhotos({ kind: 'item', id: item.id, name: item.name })} aria-label={`Photos for ${item.name}`} title="Photos"><Camera size={19}/></button><button onClick={() => openItemHistory(item)} aria-label={`Movement history for ${item.name}`} title="Movement history"><History size={19}/></button><button disabled={item.isEditLocked} onClick={() => { setSelectedItem(item); setModal('editItem'); }} aria-label={`Edit ${item.name}`} title={`Edit ${item.name}`}><Pencil size={19}/></button><button onClick={() => toggleItemEditLock(item)} aria-label={`${item.isEditLocked ? 'Unlock' : 'Lock'} editing for ${item.name}`} title={`${item.isEditLocked ? 'Unlock' : 'Lock'} editing`}>{item.isEditLocked ? <Pencil size={19}/> : <PencilOff size={19}/>}</button><button onClick={() => toggleItemLock(item)} aria-label={`${item.isMoveLocked ? 'Unlock' : 'Lock'} movement for ${item.name}`} title={`${item.isMoveLocked ? 'Unlock' : 'Lock'} movement`}>{item.isMoveLocked ? <Lock size={19}/> : <Unlock size={19}/>}</button><button disabled={item.isMoveLocked} onClick={() => { setSelectedItem(item); setModal('moveItem'); }} aria-label={`Move ${item.name}`} title={`Move ${item.name}`}><MoveRight size={19}/></button><button className="delete-item" onClick={() => deleteItem(item)} aria-label={`Delete ${item.name}`} title={`Delete ${item.name}`}><Trash2 size={19}/></button></div></article>) : <div className="empty"><Box size={32}/><p>Nothing inventoried here yet.</p><span>That does not mean nothing is hiding here.</span></div>}
         </section>}
       </>}
     </main>
 
     <div className="actions"><button disabled={current?.status === 'inactive'} onClick={() => setModal('location')}><Plus size={20}/> Add location</button><button className="primary" disabled={!currentId || current?.status === 'inactive'} onClick={() => setModal('item')}><Plus size={20}/> Add item</button></div>
+    {modal === 'activity' && <ActivityHistory subject={activitySubject} onClose={() => setModal(null)}/>}
     {modal === 'location' && <LocationForm parentName={current?.name ?? 'Your Home'} onCancel={() => setModal(null)} onSubmit={addLocation}/>} 
     {modal === 'editLocation' && current && <LocationForm parentName={locationPath(current.parentId, locations)} initial={current} onCancel={() => setModal(null)} onSubmit={editLocation}/>} 
     {modal === 'item' && current && <ItemForm locationName={current.name} onCancel={() => setModal(null)} onSubmit={addItem}/>} 

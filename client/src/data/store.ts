@@ -1,5 +1,5 @@
 import type { PhotoTargets } from '../searchFilters';
-import type { InventoryItem, InventoryPhoto, Location, LocationDeletionImpact, MovementHistoryEntry } from '../types';
+import type { ActivityPage, ActivitySubject, InventoryItem, InventoryPhoto, Location, LocationDeletionImpact, MovementHistoryEntry } from '../types';
 
 const developmentApiPort = window.location.protocol === 'https:' ? '5001' : '5000';
 const defaultApiUrl = import.meta.env.DEV
@@ -22,6 +22,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const store = {
+  activity(workspaceId: string, subject: ActivitySubject | null, beforeId?: number): Promise<ActivityPage> {
+    const query = new URLSearchParams({ workspaceId });
+    if (subject) { query.set('subjectType', subject.kind); query.set('subjectId', subject.id); }
+    if (beforeId !== undefined) query.set('beforeId', String(beforeId));
+    return request<ActivityPage>(`/activity?${query}`);
+  },
   photoTargets(workspaceId: string): Promise<PhotoTargets> {
     return request<PhotoTargets>(`/photos/targets?${new URLSearchParams({ workspaceId })}`);
   },

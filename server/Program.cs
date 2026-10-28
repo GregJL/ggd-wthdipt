@@ -32,6 +32,18 @@ if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 if (app.Environment.IsDevelopment())
     await DbSeeder.SeedAsync(app.Services);
 
+app.MapGet("/api/activity", async (Guid workspaceId, long? beforeId, string? subjectType, Guid? subjectId, InventoryDbContext db) =>
+{
+    if (subjectType is not null && subjectType is not ("item" or "location"))
+        return Results.BadRequest("Choose item or location activity.");
+    var query = db.ActivityEntries.AsNoTracking().Where(x => x.WorkspaceId == workspaceId);
+    if (beforeId.HasValue) query = query.Where(x => x.Id < beforeId.Value);
+    if (subjectType is not null) query = query.Where(x => x.SubjectType == subjectType);
+    if (subjectId.HasValue) query = query.Where(x => x.SubjectId == subjectId.Value);
+    var page = await query.OrderByDescending(x => x.Id).Take(51).ToListAsync();
+    return Results.Ok(new { entries = page.Take(50), hasMore = page.Count > 50 });
+});
+
 var locations = app.MapGroup("/api/locations");
 locations.MapGet("/", async (Guid workspaceId, Guid? parentId, InventoryDbContext db) =>
     await db.Locations.AsNoTracking()
