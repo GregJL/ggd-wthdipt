@@ -38,8 +38,16 @@ app.MapGet("/api/activity", async (Guid workspaceId, long? beforeId, string? sub
         return Results.BadRequest("Choose item or location activity.");
     var query = db.ActivityEntries.AsNoTracking().Where(x => x.WorkspaceId == workspaceId);
     if (beforeId.HasValue) query = query.Where(x => x.Id < beforeId.Value);
-    if (subjectType is not null) query = query.Where(x => x.SubjectType == subjectType);
-    if (subjectId.HasValue) query = query.Where(x => x.SubjectId == subjectId.Value);
+    if (subjectType == "location" && subjectId.HasValue)
+    {
+        query = await ActivityQueries.ForLocationAsync(db, workspaceId, subjectId.Value);
+        if (beforeId.HasValue) query = query.Where(x => x.Id < beforeId.Value);
+    }
+    else
+    {
+        if (subjectType is not null) query = query.Where(x => x.SubjectType == subjectType);
+        if (subjectId.HasValue) query = query.Where(x => x.SubjectId == subjectId.Value);
+    }
     var page = await query.OrderByDescending(x => x.Id).Take(51).ToListAsync();
     return Results.Ok(new { entries = page.Take(50), hasMore = page.Count > 50 });
 });
