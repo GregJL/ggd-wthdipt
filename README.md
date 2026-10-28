@@ -311,3 +311,10 @@ dotnet run --project tests/Ggd.ActivityTests
 These use a disposable SQLite database to verify recording, archived/restored
 locations, independent locks, photos, immutable name/path snapshots, deletion
 survival, no-op saves, and transaction rollback. They do not access the live database.
+
+
+Location activity includes the location itself, nested locations, and the items
+currently stored anywhere inside that hierarchy. This uses stable IDs, so existing
+entries appear without another edit, and renaming locations does not break the view.
+When an item is moved out or deleted, its history remains in **All inventory activity**;
+the location view reflects current contents.

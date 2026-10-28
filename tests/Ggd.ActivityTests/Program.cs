@@ -47,6 +47,21 @@ Check((await Latest()).Details.Contains("Caption: Before → After"), "caption h
 db.Photos.Remove(photo); await db.SaveChangesAsync();
 Check((await Latest()).Action == "photo-deleted", "photo deletion");
 
+// Parent views include existing history for current contents at every depth.
+item.LocationId = shelf.Id; item.Note = "Parent history regression";
+await db.SaveChangesAsync();
+var otherFloor = new Location { WorkspaceId = workspace.Id, Name = "Other floor" };
+db.Locations.Add(otherFloor); await db.SaveChangesAsync();
+var rootActivity = await (await ActivityQueries.ForLocationAsync(db, workspace.Id, root.Id)).ToListAsync();
+Check(rootActivity.Any(x => x.SubjectId == item.Id && x.Id == edited.Id), "parent includes existing item edits");
+Check(rootActivity.Any(x => x.SubjectId == shelf.Id && x.Action == "archived"), "parent includes nested location actions");
+Check(rootActivity.Any(x => x.SubjectId == item.Id && x.Action == "photo-added"), "parent includes item photos");
+Check(rootActivity.All(x => x.SubjectId != otherFloor.Id), "unrelated locations excluded");
+Check(!await (await ActivityQueries.ForLocationAsync(db, Guid.NewGuid(), root.Id)).AnyAsync(), "location history is workspace scoped");
+var shelfActivity = await (await ActivityQueries.ForLocationAsync(db, workspace.Id, shelf.Id)).ToListAsync();
+Check(shelfActivity.Any(x => x.SubjectId == item.Id && x.Action == "updated"), "immediate parent includes edits");
+Check(shelfActivity.All(x => x.SubjectId != root.Id), "child does not include ancestor actions");
+
 db.Items.Remove(item); await db.SaveChangesAsync();
 db.ChangeTracker.Clear();
 Check(await db.ActivityEntries.AnyAsync(x => x.SubjectId == item.Id && x.Action == "deleted"), "history survives item deletion");
@@ -58,7 +73,7 @@ try { await db.SaveChangesAsync(); throw new Exception("Expected unique constrai
 catch (DbUpdateException) { }
 db.ChangeTracker.Clear();
 Check(await db.ActivityEntries.CountAsync() == count, "failed save rolls back activity");
-Console.WriteLine("PASS: adds, edits, no-op saves, independent locks, moves, archive/restore, photos, deleted history, snapshots, and rollback.");
+Console.WriteLine("PASS: adds, edits, no-op saves, independent locks, moves, archive/restore, photos, deleted history, snapshots, rollback, and parent/descendant activity scope.");
 
 async Task<ActivityEntry> Latest() => await db.ActivityEntries.OrderByDescending(x => x.Id).FirstAsync();
 static void Check(bool condition, string label) { if (!condition) throw new Exception($"FAIL: {label}"); }

@@ -44,7 +44,7 @@ export default function ActivityHistory({ subject, onClose }: { subject: Activit
   return <div className="modal-backdrop"><section ref={panel} className="modal activity-modal" role="dialog" aria-modal="true" aria-labelledby="activity-title">
     <button className="close" onClick={onClose} aria-label="Close activity history" autoFocus><X/></button>
     <h2 id="activity-title">Activity history</h2><p>{subject?.name ?? 'All inventory activity'}</p>
-    <p className="activity-intro">New actions are recorded from this update onward. Earlier moves remain in Movement history.</p>
+    <p className="activity-intro">{subject?.kind === 'location' && <>Includes this location, its nested locations, and their current items. </>}New actions are recorded from this update onward. Earlier moves remain in Movement history.</p>
     <button className="search-reset" disabled={loading} onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16}/> Refresh</button>
     {error && <p role="alert">{error}</p>}
     {!entries.length && !loading && !error && <p>No activity recorded yet.</p>}
