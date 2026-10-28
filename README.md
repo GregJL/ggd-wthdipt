@@ -269,3 +269,45 @@ To remove automatic startup without deleting the application, database, photos, 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\remove-startup-task.ps1
 ```
+
+
+## Activity history
+
+Activity history records new item/location adds, edits, independent locks, moves,
+archives/restorations, deletions, and photo uploads/caption edits/deletions. Open
+**Activity history** in the header for the whole inventory, or use the activity
+button on an item or location for its own records. Records load 50 at a time;
+**Load older** uses a stable ID cursor.
+
+Names, paths, and changed values are saved with each event. Activity has no foreign
+keys to inventory entities, so deleting an item or location does not delete its
+activity. Inventory changes and their activity save in the same database transaction.
+Direct database edits are outside this application history. Recording starts with
+this version; older movement records remain under **Movement history**. Individual
+user attribution will require the future authentication work.
+
+### Install this version
+
+This version adds the `AddActivityHistory` migration. After merging:
+
+```powershell
+cd D:\ggd-wthdipt
+git pull
+.\stop-background-ggd.cmd
+dotnet ef database update --project server
+.\publish-ggd.cmd
+.\start-background-ggd.cmd
+```
+
+Run the migration before starting this version of the application. Keep all existing
+migration files. The normal PostgreSQL backups include the new history table.
+
+### Activity regression checks
+
+```powershell
+dotnet run --project tests/Ggd.ActivityTests
+```
+
+These use a disposable SQLite database to verify recording, archived/restored
+locations, independent locks, photos, immutable name/path snapshots, deletion
+survival, no-op saves, and transaction rollback. They do not access the live database.
