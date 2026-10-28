@@ -85,6 +85,7 @@ internal static class AuthChecks
             Check(user.PasswordHash is not null && user.PasswordHash != Password, "password hashed");
         }
         await ItemDetailsChecks.RunAsync(client, workspace, locationId);
+        await OrganizationChecks.RunAsync(client, workspace, locationId, factory.Services);
         using (var form = new MultipartFormDataContent())
         {
             form.Add(new StringContent(workspace.ToString()), "workspaceId");

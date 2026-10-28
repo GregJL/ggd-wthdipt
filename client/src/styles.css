@@ -153,3 +153,28 @@ form { display: grid; gap: 15px; } form label { display: grid; gap: 6px; font-si
 .item-details dt { color: #69756f; }
 .item-details dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 400px) { .optional-fields .form-row { grid-template-columns: 1fr; } }
+
+.organization-board > section { margin-top: 30px; }
+.organization-board .section-heading { flex-wrap: wrap; }
+.organization-board h2 { overflow-wrap: anywhere; }
+.organization-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 20px; }
+.organization-metrics > div { border: 1px solid #d9d5cb; background: #fffdf8; border-radius: 14px; padding: 14px; }
+.organization-metrics strong { display: block; font-size: 1.8rem; }
+.organization-metrics span { color: #69756f; font-size: .85rem; }
+.organization-board label { display: grid; gap: 6px; }
+.organization-board select, .photo-stage-filter select { width: 100%; min-width: 0; padding: 10px; border: 1px solid #b9c4bd; border-radius: 8px; background: white; }
+.organization-check, form .organization-check { display: flex; align-items: center; gap: 8px; }
+.organization-check input, form .organization-check input { width: auto; }
+.organization-worklist { list-style: none; padding: 0; }
+.organization-worklist li { background: #fffdf8; border: 1px solid #d9d5cb; border-radius: 14px; padding: 15px; margin: 12px 0; overflow-wrap: anywhere; }
+.organization-worklist li p { font-size: .9rem; margin: 6px 0; }
+.organization-buttons, .organization-staging { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+.organization-buttons button { min-height: 40px; padding: 8px 12px; border: 1px solid #b9c4bd; border-radius: 8px; background: #eef2ec; color: #264a35; }
+.organization-board progress { width: 100%; accent-color: #38604d; }
+.organization-task-form { border: 1px solid #b9c4bd; padding: 15px; border-radius: 12px; margin-top: 15px; }
+.organization-badge { display: inline-block; padding: 4px 7px; border-radius: 6px; background: #e9dfb9; color: #564313; font-size: .8rem; }
+.task-notes { white-space: pre-wrap; }
+.photo-stage-filter { display: grid; gap: 6px; margin: 18px 0; }
+@media (max-width: 400px) { .organization-metrics { grid-template-columns: 1fr; } }
+
+.item-actions button.organize-item { width: auto; display: flex; gap: 5px; padding: 0 9px; font-size: .85rem; }

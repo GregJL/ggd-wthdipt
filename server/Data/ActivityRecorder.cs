@@ -10,7 +10,7 @@ internal static class ActivityRecorder
     {
         db.ChangeTracker.DetectChanges();
         var entries = db.ChangeTracker.Entries()
-            .Where(e => e.Entity is Location or InventoryItem or InventoryPhoto)
+            .Where(e => e.Entity is Location or InventoryItem or InventoryPhoto or OrganizationTask)
             .Where(e => e.State is EntityState.Added or EntityState.Deleted ||
                 e.State == EntityState.Modified && e.Properties.Any(p => p.IsModified && !Equals(p.OriginalValue, p.CurrentValue)))
             .ToList();
@@ -47,7 +47,24 @@ internal static class ActivityRecorder
             var verb = added ? "Added" : deleted ? "Deleted" : "Updated";
             activity.Action = added ? "added" : deleted ? "deleted" : "updated";
 
-            if (entry.Entity is InventoryPhoto photo)
+            if (entry.Entity is OrganizationTask task)
+            {
+                activity.SubjectType = task.ItemId.HasValue ? "item" : task.LocationId.HasValue ? "location" : "task";
+                activity.SubjectId = task.ItemId ?? task.LocationId ?? task.Id;
+                activity.SubjectName = task.ReferenceName ?? task.Title;
+                Guid? locationId = task.LocationId;
+                if (task.ItemId is Guid linkedItem)
+                    locationId = await db.Items.Where(x => x.Id == linkedItem && x.WorkspaceId == task.WorkspaceId).Select(x => (Guid?)x.LocationId).FirstOrDefaultAsync(cancellationToken);
+                activity.LocationPath = Path(locationId);
+                var taskVerb = !added && !deleted && changes.Any(p => p.Metadata.Name == "IsCompleted") ? (task.IsCompleted ? "Completed" : "Reopened") : verb;
+                activity.Action = "task-" + taskVerb.ToLowerInvariant();
+                activity.Summary = $"{taskVerb} organization task “{task.Title}”";
+                activity.Details = added || deleted ? task.Note ?? "Organization task" : string.Join("\n", changes
+                    .Where(p => p.Metadata.Name is not ("ItemId" or "LocationId" or "ReferenceName" or "CompletedAt"))
+                    .Select(Describe));
+                if (task.ReferenceName is not null) activity.Details += $"\nRelated: {task.ReferenceName}";
+            }
+            else if (entry.Entity is InventoryPhoto photo)
             {
                 activity.SubjectType = photo.ItemId.HasValue ? "item" : "location";
                 activity.SubjectId = photo.ItemId ?? photo.LocationId!.Value;
@@ -65,12 +82,12 @@ internal static class ActivityRecorder
                 }
                 activity.Action = added ? "photo-added" : deleted ? "photo-deleted" : "photo-updated";
                 activity.Summary = $"{verb} photo for {activity.SubjectType} “{activity.SubjectName}”";
-                activity.Details = $"File: {photo.OriginalFileName}";
+                activity.Details = $"File: {photo.OriginalFileName}\nPhoto label: {photo.Stage}";
                 if (added || deleted)
                 {
                     if (!string.IsNullOrEmpty(photo.Caption)) activity.Details += $"\nCaption: {photo.Caption}";
                 }
-                else activity.Details += "\n" + string.Join("\n", changes.Where(p => p.Metadata.Name == "Caption").Select(Describe));
+                else activity.Details += "\n" + string.Join("\n", changes.Where(p => p.Metadata.Name is "Caption" or "Stage").Select(Describe));
             }
             else
             {
@@ -88,7 +105,9 @@ internal static class ActivityRecorder
                 else
                 {
                     activity.Details = string.Join("\n", changes.Select(p => p.Metadata.Name is "LocationId" or "ParentId"
-                        ? $"Location: {Path((Guid?)p.OriginalValue)} → {Path((Guid?)p.CurrentValue)}" : Describe(p)));
+                        ? $"Location: {Path((Guid?)p.OriginalValue)} → {Path((Guid?)p.CurrentValue)}"
+                        : p.Metadata.Name == "PlannedLocationId" ? $"Planned destination: {(p.OriginalValue is Guid oldPlan ? Path(oldPlan) : "(none)")} → {(p.CurrentValue is Guid newPlan ? Path(newPlan) : "(none)")}"
+                        : Describe(p)));
                     if (changes.Any(p => p.Metadata.Name is "LocationId" or "ParentId"))
                     {
                         activity.Action = "moved";
@@ -120,11 +139,12 @@ internal static class ActivityRecorder
         var label = property.Metadata.Name switch
         {
             "IsEditLocked" => "Edit lock", "IsMoveLocked" => "Move lock",
+            "NeedsSorting" => "Sorting status", "IsStaging" => "Staging area", "IsCompleted" => "Task status", "Stage" => "Photo label",
             "Kind" => "Type", "Note" => "Notes", "SerialNumber" => "Serial number",
             "PurchaseDate" => "Purchase date", "PurchasePrice" => "Purchase price (USD each)",
             "ReplacementValue" => "Replacement value (USD each)", "WarrantyExpiresOn" => "Warranty ends", "WarrantyNotes" => "Warranty notes", _ => property.Metadata.Name
         };
-        static string Value(object? value) => value switch { null => "(empty)", "" => "(empty)", bool b => b ? "Locked" : "Unlocked", IEnumerable<string> tags => string.Join(", ", tags), DateOnly date => date.ToString("yyyy-MM-dd"), decimal amount => amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), _ => value.ToString()! };
+        string Value(object? value) => value switch { null => "(empty)", "" => "(empty)", bool b => property.Metadata.Name switch { "NeedsSorting" => b ? "Needs sorting" : "Sorted", "IsStaging" => b ? "Staging area" : "Regular location", "IsCompleted" => b ? "Done" : "Open", _ => b ? "Locked" : "Unlocked" }, IEnumerable<string> tags => string.Join(", ", tags), DateOnly date => date.ToString("yyyy-MM-dd"), decimal amount => amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), _ => value.ToString()! };
         return $"{label}: {Value(property.OriginalValue)} → {Value(property.CurrentValue)}";
     }
 }

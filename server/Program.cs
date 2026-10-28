@@ -1,3 +1,4 @@
+using Ggd.Api;
 using Ggd.Api.Security;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.DataProtection;
@@ -89,6 +90,7 @@ app.UseAuthorization();
 app.UseRateLimiter();
 app.UseMiddleware<InventoryAccessMiddleware>();
 app.MapAccountEndpoints();
+app.MapOrganizationEndpoints();
 app.UseDefaultFiles();
 var staticContentTypes = new FileExtensionContentTypeProvider();
 staticContentTypes.Mappings[".webmanifest"] = "application/manifest+json";
@@ -100,8 +102,8 @@ if (app.Environment.IsDevelopment())
 
 app.MapGet("/api/activity", async (Guid workspaceId, long? beforeId, string? subjectType, Guid? subjectId, InventoryDbContext db) =>
 {
-    if (subjectType is not null && subjectType is not ("item" or "location"))
-        return Results.BadRequest("Choose item or location activity.");
+    if (subjectType is not null && subjectType is not ("item" or "location" or "task"))
+        return Results.BadRequest("Choose item, location, or task activity.");
     var query = db.ActivityEntries.AsNoTracking().Where(x => x.WorkspaceId == workspaceId);
     if (beforeId.HasValue) query = query.Where(x => x.Id < beforeId.Value);
     if (subjectType == "location" && subjectId.HasValue)
@@ -123,22 +125,22 @@ locations.MapGet("/", async (Guid workspaceId, Guid? parentId, InventoryDbContex
     await db.Locations.AsNoTracking()
         .Where(x => x.WorkspaceId == workspaceId && x.ParentId == parentId)
         .OrderBy(x => x.Name)
-        .Select(x => new LocationResponse(x.Id, x.WorkspaceId, x.ParentId, x.Name, x.Kind, x.Status, x.IsMoveLocked, x.IsEditLocked, x.Note))
+        .Select(x => new LocationResponse(x.Id, x.WorkspaceId, x.ParentId, x.Name, x.Kind, x.Status, x.IsMoveLocked, x.IsEditLocked, x.Note, x.IsStaging))
         .ToListAsync());
 locations.MapGet("/all", async (Guid workspaceId, InventoryDbContext db) =>
     await db.Locations.AsNoTracking()
         .Where(x => x.WorkspaceId == workspaceId)
         .OrderBy(x => x.Name)
-        .Select(x => new LocationResponse(x.Id, x.WorkspaceId, x.ParentId, x.Name, x.Kind, x.Status, x.IsMoveLocked, x.IsEditLocked, x.Note))
+        .Select(x => new LocationResponse(x.Id, x.WorkspaceId, x.ParentId, x.Name, x.Kind, x.Status, x.IsMoveLocked, x.IsEditLocked, x.Note, x.IsStaging))
         .ToListAsync());
 locations.MapPost("/", async (CreateLocationRequest request, InventoryDbContext db) =>
 {
     if (string.IsNullOrWhiteSpace(request.Name)) return Results.BadRequest("Name is required.");
     if (request.ParentId is Guid parentId && !await IsLocationAvailable(parentId, request.WorkspaceId, db))
         return Results.BadRequest("Parent location is unavailable or archived.");
-    var location = new Location { WorkspaceId = request.WorkspaceId, ParentId = request.ParentId, Name = request.Name.Trim(), Kind = request.Type, Status = request.Status, IsMoveLocked = request.Type is LocationKind.Floor or LocationKind.Room, Note = request.Note?.Trim() };
+    var location = new Location { WorkspaceId = request.WorkspaceId, ParentId = request.ParentId, Name = request.Name.Trim(), Kind = request.Type, Status = request.Status, IsMoveLocked = request.Type is LocationKind.Floor or LocationKind.Room, IsStaging = request.IsStaging, Note = request.Note?.Trim() };
     db.Locations.Add(location); await db.SaveChangesAsync();
-    return Results.Created($"/api/locations/{location.Id}", new LocationResponse(location.Id, location.WorkspaceId, location.ParentId, location.Name, location.Kind, location.Status, location.IsMoveLocked, location.IsEditLocked, location.Note));
+    return Results.Created($"/api/locations/{location.Id}", new LocationResponse(location.Id, location.WorkspaceId, location.ParentId, location.Name, location.Kind, location.Status, location.IsMoveLocked, location.IsEditLocked, location.Note, location.IsStaging));
 });
 locations.MapPatch("/{id:guid}", async (Guid id, UpdateLocationRequest request, InventoryDbContext db) =>
 {
@@ -154,8 +156,9 @@ locations.MapPatch("/{id:guid}", async (Guid id, UpdateLocationRequest request, 
     location.Kind = request.Type;
     location.Status = request.Status;
     location.Note = request.Note?.Trim();
+    if (request.IsStaging.HasValue) location.IsStaging = request.IsStaging.Value;
     await db.SaveChangesAsync();
-    return Results.Ok(new LocationResponse(location.Id, location.WorkspaceId, location.ParentId, location.Name, location.Kind, location.Status, location.IsMoveLocked, location.IsEditLocked, location.Note));
+    return Results.Ok(new LocationResponse(location.Id, location.WorkspaceId, location.ParentId, location.Name, location.Kind, location.Status, location.IsMoveLocked, location.IsEditLocked, location.Note, location.IsStaging));
 });
 locations.MapPatch("/{id:guid}/edit-lock", async (Guid id, SetEditLockRequest request, InventoryDbContext db) =>
 {
@@ -163,7 +166,7 @@ locations.MapPatch("/{id:guid}/edit-lock", async (Guid id, SetEditLockRequest re
     if (location is null) return Results.NotFound();
     location.IsEditLocked = request.IsEditLocked;
     await db.SaveChangesAsync();
-    return Results.Ok(new LocationResponse(location.Id, location.WorkspaceId, location.ParentId, location.Name, location.Kind, location.Status, location.IsMoveLocked, location.IsEditLocked, location.Note));
+    return Results.Ok(new LocationResponse(location.Id, location.WorkspaceId, location.ParentId, location.Name, location.Kind, location.Status, location.IsMoveLocked, location.IsEditLocked, location.Note, location.IsStaging));
 });
 locations.MapGet("/{id:guid}/deletion-impact", async (Guid id, Guid workspaceId, InventoryDbContext db) =>
 {
@@ -177,7 +180,7 @@ locations.MapPatch("/{id:guid}/archive", async (Guid id, LocationLifecycleReques
     if (location.ParentId is null) return Results.Conflict("Root locations cannot be archived.");
     location.Status = LocationStatus.Inactive;
     await db.SaveChangesAsync();
-    return Results.Ok(new LocationResponse(location.Id, location.WorkspaceId, location.ParentId, location.Name, location.Kind, location.Status, location.IsMoveLocked, location.IsEditLocked, location.Note));
+    return Results.Ok(new LocationResponse(location.Id, location.WorkspaceId, location.ParentId, location.Name, location.Kind, location.Status, location.IsMoveLocked, location.IsEditLocked, location.Note, location.IsStaging));
 });
 locations.MapPatch("/{id:guid}/restore", async (Guid id, LocationLifecycleRequest request, InventoryDbContext db) =>
 {
@@ -187,7 +190,7 @@ locations.MapPatch("/{id:guid}/restore", async (Guid id, LocationLifecycleReques
         return Results.Conflict("Restore the parent location first.");
     location.Status = LocationStatus.Active;
     await db.SaveChangesAsync();
-    return Results.Ok(new LocationResponse(location.Id, location.WorkspaceId, location.ParentId, location.Name, location.Kind, location.Status, location.IsMoveLocked, location.IsEditLocked, location.Note));
+    return Results.Ok(new LocationResponse(location.Id, location.WorkspaceId, location.ParentId, location.Name, location.Kind, location.Status, location.IsMoveLocked, location.IsEditLocked, location.Note, location.IsStaging));
 });
 locations.MapPatch("/{id:guid}/move-lock", async (Guid id, SetMoveLockRequest request, InventoryDbContext db) =>
 {
@@ -195,7 +198,7 @@ locations.MapPatch("/{id:guid}/move-lock", async (Guid id, SetMoveLockRequest re
     if (location is null) return Results.NotFound();
     location.IsMoveLocked = request.IsMoveLocked;
     await db.SaveChangesAsync();
-    return Results.Ok(new LocationResponse(location.Id, location.WorkspaceId, location.ParentId, location.Name, location.Kind, location.Status, location.IsMoveLocked, location.IsEditLocked, location.Note));
+    return Results.Ok(new LocationResponse(location.Id, location.WorkspaceId, location.ParentId, location.Name, location.Kind, location.Status, location.IsMoveLocked, location.IsEditLocked, location.Note, location.IsStaging));
 });
 locations.MapPatch("/{id:guid}/move", async (Guid id, MoveLocationRequest request, InventoryDbContext db) =>
 {
@@ -231,7 +234,7 @@ locations.MapPatch("/{id:guid}/move", async (Guid id, MoveLocationRequest reques
     location.ParentId = request.DestinationParentId;
     await db.SaveChangesAsync();
     await transaction.CommitAsync();
-    return Results.Ok(new LocationResponse(location.Id, location.WorkspaceId, location.ParentId, location.Name, location.Kind, location.Status, location.IsMoveLocked, location.IsEditLocked, location.Note));
+    return Results.Ok(new LocationResponse(location.Id, location.WorkspaceId, location.ParentId, location.Name, location.Kind, location.Status, location.IsMoveLocked, location.IsEditLocked, location.Note, location.IsStaging));
 });
 locations.MapGet("/{id:guid}/history", async (Guid id, Guid workspaceId, InventoryDbContext db) =>
 {
@@ -357,7 +360,7 @@ photos.MapGet("/", async (Guid workspaceId, Guid? itemId, Guid? locationId, Inve
     var query = db.Photos.AsNoTracking().Where(x => x.WorkspaceId == workspaceId);
     query = itemId is Guid item ? query.Where(x => x.ItemId == item) : query.Where(x => x.LocationId == locationId);
     return Results.Ok(await query.OrderByDescending(x => x.CreatedAt)
-        .Select(x => new PhotoResponse(x.Id, x.WorkspaceId, x.ItemId, x.LocationId, x.OriginalFileName, x.ContentType, x.SizeBytes, x.Caption, x.CreatedAt, $"/api/photos/{x.Id}/content?workspaceId={workspaceId}"))
+        .Select(x => new PhotoResponse(x.Id, x.WorkspaceId, x.ItemId, x.LocationId, x.OriginalFileName, x.ContentType, x.SizeBytes, x.Caption, x.CreatedAt, $"/api/photos/{x.Id}/content?workspaceId={workspaceId}", x.Stage))
         .ToListAsync());
 });
 photos.MapPost("/", async (HttpRequest request, InventoryDbContext db, IConfiguration configuration) =>
@@ -370,6 +373,9 @@ photos.MapPost("/", async (HttpRequest request, InventoryDbContext db, IConfigur
     if ((itemId is null) == (locationId is null)) return Results.BadRequest("Choose exactly one item or location.");
     if (itemId is Guid item && !await db.Items.AnyAsync(x => x.Id == item && x.WorkspaceId == workspaceId)) return Results.NotFound("Item not found.");
     if (locationId is Guid location && !await db.Locations.AnyAsync(x => x.Id == location && x.WorkspaceId == workspaceId)) return Results.NotFound("Location not found.");
+    var stage = PhotoStage.General;
+    if (!string.IsNullOrWhiteSpace(form["stage"]) && (!Enum.TryParse(form["stage"], true, out stage) || !Enum.IsDefined(stage)))
+        return Results.BadRequest("Choose general, before, or after for the photo label.");
     var file = form.Files.GetFile("file");
     if (file is null || file.Length == 0) return Results.BadRequest("Choose a photo.");
     var maxSize = configuration.GetValue<long?>("PhotoStorage:MaxFileSizeBytes") ?? 15 * 1024 * 1024;
@@ -383,7 +389,7 @@ photos.MapPost("/", async (HttpRequest request, InventoryDbContext db, IConfigur
     Directory.CreateDirectory(storagePath);
     var fullPath = Path.Combine(storagePath, storedFileName);
     await using (var stream = File.Create(fullPath)) await file.CopyToAsync(stream);
-    var photo = new InventoryPhoto { WorkspaceId = workspaceId, ItemId = itemId, LocationId = locationId, StoredFileName = storedFileName, OriginalFileName = Path.GetFileName(file.FileName), ContentType = file.ContentType, SizeBytes = file.Length, Caption = CleanCaption(form["caption"]) };
+    var photo = new InventoryPhoto { WorkspaceId = workspaceId, ItemId = itemId, LocationId = locationId, StoredFileName = storedFileName, OriginalFileName = Path.GetFileName(file.FileName), ContentType = file.ContentType, SizeBytes = file.Length, Caption = CleanCaption(form["caption"]), Stage = stage };
     try { db.Photos.Add(photo); await db.SaveChangesAsync(); }
     catch { File.Delete(fullPath); throw; }
     return Results.Created($"/api/photos/{photo.Id}", ToPhotoResponse(photo));
@@ -400,7 +406,9 @@ photos.MapPatch("/{id:guid}", async (Guid id, UpdatePhotoRequest request, Invent
 {
     var photo = await db.Photos.FirstOrDefaultAsync(x => x.Id == id && x.WorkspaceId == request.WorkspaceId);
     if (photo is null) return Results.NotFound();
+    if (request.Stage.HasValue && !Enum.IsDefined(request.Stage.Value)) return Results.BadRequest("Invalid photo label.");
     photo.Caption = CleanCaption(request.Caption);
+    if (request.Stage.HasValue) photo.Stage = request.Stage.Value;
     await db.SaveChangesAsync();
     return Results.Ok(ToPhotoResponse(photo));
 });
@@ -439,7 +447,7 @@ static string GetPhotoStoragePath(IConfiguration configuration) =>
 
 static string? CleanCaption(string? caption) => string.IsNullOrWhiteSpace(caption) ? null : caption.Trim();
 
-static PhotoResponse ToPhotoResponse(InventoryPhoto photo) => new(photo.Id, photo.WorkspaceId, photo.ItemId, photo.LocationId, photo.OriginalFileName, photo.ContentType, photo.SizeBytes, photo.Caption, photo.CreatedAt, $"/api/photos/{photo.Id}/content?workspaceId={photo.WorkspaceId}");
+static PhotoResponse ToPhotoResponse(InventoryPhoto photo) => new(photo.Id, photo.WorkspaceId, photo.ItemId, photo.LocationId, photo.OriginalFileName, photo.ContentType, photo.SizeBytes, photo.Caption, photo.CreatedAt, $"/api/photos/{photo.Id}/content?workspaceId={photo.WorkspaceId}", photo.Stage);
 
 static bool IsDevelopmentClientOrigin(string origin)
 {
@@ -460,8 +468,9 @@ static async Task<LocationDeletionImpactResponse> GetLocationDeletionImpact(Guid
     var itemMovementCount = await db.ItemMovements.CountAsync(x => x.WorkspaceId == workspaceId && (x.FromLocationId == id || x.ToLocationId == id));
     var locationMovementCount = await db.LocationMovements.CountAsync(x => x.WorkspaceId == workspaceId && (x.LocationId == id || x.FromParentId == id || x.ToParentId == id));
     var movementCount = itemMovementCount + locationMovementCount;
+    var plannedItemCount = await db.Items.CountAsync(x => x.WorkspaceId == workspaceId && x.PlannedLocationId == id);
     return new LocationDeletionImpactResponse(id, isRoot, childCount, itemCount, photoCount, movementCount,
-        !isRoot && childCount == 0 && itemCount == 0 && photoCount == 0 && movementCount == 0);
+        !isRoot && childCount == 0 && itemCount == 0 && photoCount == 0 && movementCount == 0 && plannedItemCount == 0, plannedItemCount);
 }
 
 static async Task<bool> IsLocationAvailable(Guid id, Guid workspaceId, InventoryDbContext db)

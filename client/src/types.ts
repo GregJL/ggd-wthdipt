@@ -1,6 +1,7 @@
 export type LocationStatus = 'active' | 'planned' | 'temporary' | 'inactive';
 
 export interface Location {
+  isStaging?: boolean;
   id: string;
   workspaceId: string;
   parentId: string | null;
@@ -27,6 +28,8 @@ export interface ItemMetadata {
 }
 export interface ItemDraft extends ItemMetadata { name: string; quantity: number; note?: string }
 export interface InventoryItem extends ItemMetadata {
+  needsSorting?: boolean;
+  plannedLocationId?: string | null;
   id: string;
   workspaceId: string;
   locationId: string;
@@ -39,6 +42,7 @@ export interface InventoryItem extends ItemMetadata {
 }
 
 export interface LocationDeletionImpact {
+  plannedItemCount?: number;
   locationId: string;
   isRoot: boolean;
   childLocationCount: number;
@@ -48,7 +52,9 @@ export interface LocationDeletionImpact {
   canDelete: boolean;
 }
 
+export type PhotoStage = 'general' | 'before' | 'after';
 export interface InventoryPhoto {
+  stage?: PhotoStage;
   id: string;
   workspaceId: string;
   itemId: string | null;
@@ -76,7 +82,7 @@ export interface ActivityEntry {
   actorName: string | null;
   id: number;
   workspaceId: string;
-  subjectType: 'item' | 'location';
+  subjectType: 'item' | 'location' | 'task';
   subjectId: string;
   subjectName: string;
   action: string;
@@ -89,3 +95,6 @@ export interface ActivityPage { entries: ActivityEntry[]; hasMore: boolean }
 
 export interface AccountUser { id: string; email: string; displayName: string; workspaceId: string }
 export interface AccountSession { recoveryAvailable: boolean; user: AccountUser | null; setupRequired: boolean; setupAvailable: boolean; csrfToken: string }
+
+export interface OrganizationTaskDraft { title: string; note: string | null; itemId: string | null; locationId: string | null; isCompleted: boolean }
+export interface OrganizationTask extends OrganizationTaskDraft { id: string; workspaceId: string; referenceName: string | null; createdAt: string; completedAt: string | null }

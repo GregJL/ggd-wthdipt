@@ -11,7 +11,8 @@ public sealed record LocationResponse(
     LocationStatus Status,
     bool IsMoveLocked,
     bool IsEditLocked,
-    string? Note);
+    string? Note,
+    bool IsStaging = false);
 
 public sealed record ItemResponse(
     Guid Id,
@@ -24,6 +25,8 @@ public sealed record ItemResponse(
     string? Note,
     DateTimeOffset CreatedAt)
 {
+    public bool NeedsSorting { get; init; }
+    public Guid? PlannedLocationId { get; init; }
     public string? Category { get; init; }
     public string[] Tags { get; init; } = [];
     public string? Brand { get; init; }
@@ -38,6 +41,8 @@ public sealed record ItemResponse(
     public static ItemResponse From(InventoryItem item) =>
         new(item.Id, item.WorkspaceId, item.LocationId, item.Name, item.Quantity, item.IsMoveLocked, item.IsEditLocked, item.Note, item.CreatedAt)
         {
+            NeedsSorting = item.NeedsSorting,
+            PlannedLocationId = item.PlannedLocationId,
             Category = item.Category,
             Tags = item.Tags,
             Brand = item.Brand,
@@ -59,7 +64,8 @@ public sealed record LocationDeletionImpactResponse(
     int ItemCount,
     int PhotoCount,
     int MovementReferenceCount,
-    bool CanDelete);
+    bool CanDelete,
+    int PlannedItemCount = 0);
 
 public sealed record MovementHistoryResponse(
     Guid Id,
@@ -79,4 +85,5 @@ public sealed record PhotoResponse(
     long SizeBytes,
     string? Caption,
     DateTimeOffset CreatedAt,
-    string ContentUrl);
+    string ContentUrl,
+    PhotoStage Stage = PhotoStage.General);

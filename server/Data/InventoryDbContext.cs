@@ -17,6 +17,7 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
     public DbSet<InventoryPhoto> Photos => Set<InventoryPhoto>();
 
     public DbSet<PasswordRecovery> PasswordRecoveries => Set<PasswordRecovery>();
+    public DbSet<OrganizationTask> OrganizationTasks => Set<OrganizationTask>();
     public DbSet<ActivityEntry> ActivityEntries => Set<ActivityEntry>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess) =>
@@ -67,6 +68,10 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
         modelBuilder.Entity<InventoryItem>().Property(x => x.Condition).HasMaxLength(100);
         modelBuilder.Entity<InventoryItem>().Property(x => x.PurchasePrice).HasPrecision(12, 2);
         modelBuilder.Entity<InventoryItem>().Property(x => x.ReplacementValue).HasPrecision(12, 2);
+        modelBuilder.Entity<OrganizationTask>().HasIndex(x => new { x.WorkspaceId, x.IsCompleted });
+        modelBuilder.Entity<OrganizationTask>().Property(x => x.Title).HasMaxLength(200);
+        modelBuilder.Entity<OrganizationTask>().Property(x => x.Note).HasMaxLength(2000);
+        modelBuilder.Entity<InventoryItem>().HasOne<Location>().WithMany().HasForeignKey(x => x.PlannedLocationId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<InventoryItem>().HasOne(x => x.Location).WithMany(x => x.Items).HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<ItemMovement>().HasOne(x => x.Item).WithMany(x => x.Movements).HasForeignKey(x => x.ItemId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<LocationMovement>().HasOne(x => x.Location).WithMany(x => x.Movements).HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Cascade);
