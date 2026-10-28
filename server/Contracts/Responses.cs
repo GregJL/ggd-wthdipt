@@ -22,7 +22,35 @@ public sealed record ItemResponse(
     bool IsMoveLocked,
     bool IsEditLocked,
     string? Note,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt)
+{
+    public string? Category { get; init; }
+    public string[] Tags { get; init; } = [];
+    public string? Brand { get; init; }
+    public string? Model { get; init; }
+    public string? SerialNumber { get; init; }
+    public DateOnly? PurchaseDate { get; init; }
+    public decimal? PurchasePrice { get; init; }
+    public decimal? ReplacementValue { get; init; }
+    public DateOnly? WarrantyExpiresOn { get; init; }
+    public string? WarrantyNotes { get; init; }
+    public string? Condition { get; init; }
+    public static ItemResponse From(InventoryItem item) =>
+        new(item.Id, item.WorkspaceId, item.LocationId, item.Name, item.Quantity, item.IsMoveLocked, item.IsEditLocked, item.Note, item.CreatedAt)
+        {
+            Category = item.Category,
+            Tags = item.Tags,
+            Brand = item.Brand,
+            Model = item.Model,
+            SerialNumber = item.SerialNumber,
+            PurchaseDate = item.PurchaseDate,
+            PurchasePrice = item.PurchasePrice,
+            ReplacementValue = item.ReplacementValue,
+            WarrantyExpiresOn = item.WarrantyExpiresOn,
+            WarrantyNotes = item.WarrantyNotes,
+            Condition = item.Condition,
+        };
+}
 
 public sealed record LocationDeletionImpactResponse(
     Guid LocationId,

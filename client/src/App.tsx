@@ -6,7 +6,9 @@ import { applyPwaUpdate } from './pwa';
 import InventorySearch from './InventorySearch';
 import ActivityHistory from './ActivityHistory';
 import AccountSettings from './AccountSettings';
-import type { AccountUser, ActivitySubject, InventoryItem, InventoryPhoto, Location, LocationDeletionImpact, LocationStatus, MovementHistoryEntry } from './types';
+import ItemEditor from './ItemEditor';
+import ItemDetails from './ItemDetails';
+import type { ItemDraft, AccountUser, ActivitySubject, InventoryItem, InventoryPhoto, Location, LocationDeletionImpact, LocationStatus, MovementHistoryEntry } from './types';
 
 type Modal = 'account' | 'activity' | 'location' | 'item' | 'editItem' | 'editLocation' | 'moveItem' | 'moveLocation' | 'removeLocation' | 'history' | 'photos' | null;
 type PhotoTarget = { kind: 'item'; id: string; name: string } | { kind: 'location'; id: string; name: string };
@@ -73,12 +75,10 @@ export default function App({ account, onSignOut, onRecover }: { account: Accoun
       setLocations((known) => [...known, added]); setModal(null);
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not add the location.'); }
   }
-  async function addItem(name: string, quantity: number, note: string) {
+  async function addItem(draft: ItemDraft) {
     if (!currentId) return;
-    try {
-      const added = await store.addItem({ workspaceId: WORKSPACE_ID, locationId: currentId, name, quantity, isMoveLocked: false, isEditLocked: false, note: note || undefined });
-      setItems((known) => [...known, added]); setModal(null);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not add the item.'); }
+    const added = await store.addItem({ ...draft, workspaceId: WORKSPACE_ID, locationId: currentId, isMoveLocked: false, isEditLocked: false });
+    setItems((known) => [...known, added]); setModal(null);
   }
   async function editLocation(name: string, type: Location['type'], status: LocationStatus, note: string) {
     if (!current) return;
@@ -88,13 +88,11 @@ export default function App({ account, onSignOut, onRecover }: { account: Accoun
       setModal(null);
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not update the location.'); }
   }
-  async function editItem(name: string, quantity: number, note: string) {
+  async function editItem(draft: ItemDraft) {
     if (!selectedItem) return;
-    try {
-      const updated = await store.updateItem({ ...selectedItem, name, quantity, note: note || undefined });
-      setItems((known) => known.map((item) => item.id === updated.id ? updated : item));
-      setSelectedItem(null); setModal(null);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not update the item.'); }
+    const updated = await store.updateItem({ ...selectedItem, ...draft });
+    setItems((known) => known.map((item) => item.id === updated.id ? updated : item));
+    setSelectedItem(null); setModal(null);
   }
   async function deleteItem(item: InventoryItem) {
     if (!window.confirm(`Delete “${item.name}” and any photos attached to it? This cannot be undone.`)) return;
@@ -253,7 +251,7 @@ export default function App({ account, onSignOut, onRecover }: { account: Accoun
         </div>
 
         {current && <section className="items"><div className="items-title"><h3>Items here</h3><span>{visibleItems.length}</span></div>
-          {visibleItems.length ? visibleItems.map((item) => <article key={item.id}><Box size={22}/><div><strong>{item.name}</strong><small>Qty {item.quantity}{item.note ? ` · ${item.note}` : ''}</small></div><div className="item-actions"><button onClick={() => openActivity({ kind: 'item', id: item.id, name: item.name })} aria-label={`Activity history for ${item.name}`} title="Activity history"><Clock3 size={19}/></button><button onClick={() => openPhotos({ kind: 'item', id: item.id, name: item.name })} aria-label={`Photos for ${item.name}`} title="Photos"><Camera size={19}/></button><button onClick={() => openItemHistory(item)} aria-label={`Movement history for ${item.name}`} title="Movement history"><History size={19}/></button><button disabled={item.isEditLocked} onClick={() => { setSelectedItem(item); setModal('editItem'); }} aria-label={`Edit ${item.name}`} title={`Edit ${item.name}`}><Pencil size={19}/></button><button onClick={() => toggleItemEditLock(item)} aria-label={`${item.isEditLocked ? 'Unlock' : 'Lock'} editing for ${item.name}`} title={`${item.isEditLocked ? 'Unlock' : 'Lock'} editing`}>{item.isEditLocked ? <Pencil size={19}/> : <PencilOff size={19}/>}</button><button onClick={() => toggleItemLock(item)} aria-label={`${item.isMoveLocked ? 'Unlock' : 'Lock'} movement for ${item.name}`} title={`${item.isMoveLocked ? 'Unlock' : 'Lock'} movement`}>{item.isMoveLocked ? <Lock size={19}/> : <Unlock size={19}/>}</button><button disabled={item.isMoveLocked} onClick={() => { setSelectedItem(item); setModal('moveItem'); }} aria-label={`Move ${item.name}`} title={`Move ${item.name}`}><MoveRight size={19}/></button><button className="delete-item" onClick={() => deleteItem(item)} aria-label={`Delete ${item.name}`} title={`Delete ${item.name}`}><Trash2 size={19}/></button></div></article>) : <div className="empty"><Box size={32}/><p>Nothing inventoried here yet.</p><span>That does not mean nothing is hiding here.</span></div>}
+          {visibleItems.length ? visibleItems.map((item) => <article key={item.id}><Box size={22}/><div><strong>{item.name}</strong><small>Qty {item.quantity}{item.note ? ` · ${item.note}` : ''}</small><ItemDetails item={item}/></div><div className="item-actions"><button onClick={() => openActivity({ kind: 'item', id: item.id, name: item.name })} aria-label={`Activity history for ${item.name}`} title="Activity history"><Clock3 size={19}/></button><button onClick={() => openPhotos({ kind: 'item', id: item.id, name: item.name })} aria-label={`Photos for ${item.name}`} title="Photos"><Camera size={19}/></button><button onClick={() => openItemHistory(item)} aria-label={`Movement history for ${item.name}`} title="Movement history"><History size={19}/></button><button disabled={item.isEditLocked} onClick={() => { setSelectedItem(item); setModal('editItem'); }} aria-label={`Edit ${item.name}`} title={`Edit ${item.name}`}><Pencil size={19}/></button><button onClick={() => toggleItemEditLock(item)} aria-label={`${item.isEditLocked ? 'Unlock' : 'Lock'} editing for ${item.name}`} title={`${item.isEditLocked ? 'Unlock' : 'Lock'} editing`}>{item.isEditLocked ? <Pencil size={19}/> : <PencilOff size={19}/>}</button><button onClick={() => toggleItemLock(item)} aria-label={`${item.isMoveLocked ? 'Unlock' : 'Lock'} movement for ${item.name}`} title={`${item.isMoveLocked ? 'Unlock' : 'Lock'} movement`}>{item.isMoveLocked ? <Lock size={19}/> : <Unlock size={19}/>}</button><button disabled={item.isMoveLocked} onClick={() => { setSelectedItem(item); setModal('moveItem'); }} aria-label={`Move ${item.name}`} title={`Move ${item.name}`}><MoveRight size={19}/></button><button className="delete-item" onClick={() => deleteItem(item)} aria-label={`Delete ${item.name}`} title={`Delete ${item.name}`}><Trash2 size={19}/></button></div></article>) : <div className="empty"><Box size={32}/><p>Nothing inventoried here yet.</p><span>That does not mean nothing is hiding here.</span></div>}
         </section>}
       </>}
     </main>
@@ -308,9 +306,8 @@ function LocationForm({ parentName, initial, onCancel, onSubmit }: { parentName:
   return <ModalFrame title={initial ? 'Edit location' : 'Add a location'} subtitle={`Inside ${parentName}`} onCancel={onCancel}><form onSubmit={(e) => { e.preventDefault(); onSubmit(name.trim(), type, status, note.trim()); }}><label>Name<input required autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Cabinet, shelf, suspicious pile…"/></label><div className="form-row"><label>Type<select value={type} onChange={(e) => setType(e.target.value as Location['type'])}><option value="floor">Floor</option><option value="area">Area</option><option value="room">Room</option><option value="storage">Storage</option></select></label><label>Status<select value={status} onChange={(e) => setStatus(e.target.value as LocationStatus)}><option value="active">Active</option><option value="planned">Planned</option><option value="temporary">Temporary</option><option value="inactive">Inactive</option></select></label></div><label>Notes<textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything useful to remember"/></label><button className="submit">{initial ? 'Save changes' : 'Add location'}</button></form></ModalFrame>;
 }
 
-function ItemForm({ locationName, initial, onCancel, onSubmit }: { locationName: string; initial?: InventoryItem; onCancel: () => void; onSubmit: (name: string, quantity: number, note: string) => void }) {
-  const [name, setName] = useState(initial?.name ?? ''); const [quantity, setQuantity] = useState(initial?.quantity ?? 1); const [note, setNote] = useState(initial?.note ?? '');
-  return <ModalFrame title={initial ? 'Edit item' : 'Add an item'} subtitle={`Stored in ${locationName}`} onCancel={onCancel}><form onSubmit={(e) => { e.preventDefault(); onSubmit(name.trim(), quantity, note.trim()); }}><label>Item name<input required autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="What are we trying not to lose?"/></label><label>Quantity<input type="number" min="1" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))}/></label><label>Notes<textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Color, condition, model, etc."/></label><button className="submit">{initial ? 'Save changes' : 'Add item'}</button></form></ModalFrame>;
+function ItemForm({ locationName, initial, onCancel, onSubmit }: { locationName: string; initial?: InventoryItem; onCancel: () => void; onSubmit: (draft: ItemDraft) => Promise<void> }) {
+  return <ModalFrame title={initial ? 'Edit item' : 'Add an item'} subtitle={`Stored in ${locationName}`} onCancel={onCancel}><ItemEditor initial={initial} onSubmit={onSubmit}/></ModalFrame>;
 }
 
 function RemoveLocationForm({ location, impact, onCancel, onArchive, onDelete }: { location: Location; impact: LocationDeletionImpact | null; onCancel: () => void; onArchive: () => void; onDelete: () => void }) {

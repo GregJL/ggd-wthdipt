@@ -84,6 +84,7 @@ internal static class AuthChecks
             Check(user.LockoutEnabled, "lockout enabled for existing owner");
             Check(user.PasswordHash is not null && user.PasswordHash != Password, "password hashed");
         }
+        await ItemDetailsChecks.RunAsync(client, workspace, locationId);
         using (var form = new MultipartFormDataContent())
         {
             form.Add(new StringContent(workspace.ToString()), "workspaceId");

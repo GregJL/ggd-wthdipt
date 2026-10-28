@@ -141,3 +141,15 @@ form { display: grid; gap: 15px; } form label { display: grid; gap: 6px; font-si
 .account-card .account-hint { font-size: .85rem; margin: 0; }
 .account-signout { margin-top: 20px; }
 .activity-actor { display: block; font-size: .8rem; color: #476457; margin-top: 5px; }
+
+.optional-details { border: 1px solid #d9d5cb; border-radius: 12px; padding: 12px; }
+.optional-details > summary, .item-details > summary { cursor: pointer; color: #315c46; font-weight: 700; }
+.optional-fields { display: grid; gap: 15px; margin-top: 15px; }
+.optional-fields .form-row > label { min-width: 0; }
+.optional-fields small { font-weight: 400; color: #69756f; }
+.item-details { margin-top: 10px; font-size: .85rem; }
+.item-details dl { margin: 8px 0; }
+.item-details dl > div { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(0, 2fr); gap: 10px; margin: 6px 0; }
+.item-details dt { color: #69756f; }
+.item-details dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 400px) { .optional-fields .form-row { grid-template-columns: 1fr; } }
