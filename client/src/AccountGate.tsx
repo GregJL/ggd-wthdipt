@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import App from './App';
+import PasswordRecovery from './PasswordRecovery';
 import { auth } from './data/auth';
 import type { AccountSession } from './types';
 
 export default function AccountGate() {
+  const [recovering, setRecovering] = useState(false);
   const [session, setSession] = useState<AccountSession | null>(null);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -17,14 +19,15 @@ export default function AccountGate() {
   }, [attempt]);
   async function signedIn() { setSession(null); setAttempt((value) => value + 1); }
   async function signOut() { await auth.logout(); setSession(null); setAttempt((value) => value + 1); }
-  if (session?.user) return <App account={session.user} onSignOut={signOut}/>;
+  if (session?.user && !recovering) return <App account={session.user} onSignOut={signOut} onRecover={() => setRecovering(true)}/>;
   return <div className="app-shell account-shell"><header><div className="eyebrow">Greg's giant database of</div><h1>Where the hell did I put that?</h1></header><main>
     {!session ? <section className="account-card">{error ? <><p role="alert">{error}</p><button onClick={() => setAttempt((value) => value + 1)}>Retry</button></> : <p role="status">Connecting to your household…</p>}</section>
-      : <SignIn session={session} onSignedIn={signedIn}/>}
+      : recovering ? <PasswordRecovery available={session.recoveryAvailable} initialEmail={session.user?.email ?? ''} onBack={() => setRecovering(false)} onComplete={() => { setRecovering(false); setSession(null); setAttempt((value) => value + 1); }}/>
+      : <SignIn session={session} onSignedIn={signedIn} onRecover={() => setRecovering(true)}/>}
   </main></div>;
 }
 
-function SignIn({ session, onSignedIn }: { session: AccountSession; onSignedIn: () => Promise<void> }) {
+function SignIn({ session, onSignedIn, onRecover }: { session: AccountSession; onSignedIn: () => Promise<void>; onRecover: () => void }) {
   const [email, setEmail] = useState(''); const [displayName, setDisplayName] = useState('Greg');
   const [password, setPassword] = useState(''); const [confirm, setConfirm] = useState('');
   const [code, setCode] = useState(''); const [rememberMe, setRememberMe] = useState(true);
@@ -51,5 +54,6 @@ function SignIn({ session, onSignedIn }: { session: AccountSession; onSignedIn: 
           : <label className="account-check"><input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)}/> Keep me signed in on this device</label>}
         {error && <p role="alert">{error}</p>}<button className="submit" disabled={busy}>{busy ? 'Please wait…' : setup ? 'Create my account' : 'Sign in'}</button>
       </form>}
+    {!setup && <button className="search-reset account-signout" disabled={busy} onClick={onRecover}>Forgot password?</button>}
   </section>;
 }

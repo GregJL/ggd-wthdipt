@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { auth } from './data/auth';
 import type { AccountUser } from './types';
 
-export default function AccountSettings({ account, onSignOut, onClose }: { account: AccountUser; onSignOut: () => Promise<void>; onClose: () => void }) {
+export default function AccountSettings({ account, onSignOut, onClose, onRecover }: { account: AccountUser; onSignOut: () => Promise<void>; onClose: () => void; onRecover: () => void }) {
   const panel = useRef<HTMLElement>(null);
   const previousFocus = useRef(document.activeElement as HTMLElement | null);
   useEffect(() => {
@@ -36,6 +36,7 @@ export default function AccountSettings({ account, onSignOut, onClose }: { accou
       <label>Confirm new password<input type="password" required autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)}/></label>
       <button className="submit" disabled={busy}>Change password</button>
     </form>
+    <button className="search-reset account-signout" disabled={busy} onClick={onRecover}>Reset a forgotten password</button>
     {message && <p role="status">{message}</p>}
     <button className="search-reset account-signout" disabled={busy} onClick={async () => {
       setBusy(true); try { await onSignOut(); } catch { setMessage('Could not sign out. Check the connection and try again.'); setBusy(false); }

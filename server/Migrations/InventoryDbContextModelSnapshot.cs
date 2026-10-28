@@ -337,6 +337,33 @@ namespace Ggd.Api.Migrations
                     b.ToTable("LocationMovements");
                 });
 
+            modelBuilder.Entity("Ggd.Api.Models.PasswordRecovery", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProtectedCodeHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SecurityStamp")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("PasswordRecoveries");
+                });
+
             modelBuilder.Entity("Ggd.Api.Models.Workspace", b =>
                 {
                     b.Property<Guid>("Id")
@@ -574,6 +601,15 @@ namespace Ggd.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Location");
+                });
+
+            modelBuilder.Entity("Ggd.Api.Models.PasswordRecovery", b =>
+                {
+                    b.HasOne("Ggd.Api.Models.AppUser", null)
+                        .WithOne()
+                        .HasForeignKey("Ggd.Api.Models.PasswordRecovery", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Ggd.Api.Models.WorkspaceMember", b =>

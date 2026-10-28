@@ -16,7 +16,7 @@ public static class AccountEndpoints
     public static void MapAccountEndpoints(this WebApplication app)
     {
         var account = app.MapGroup("/api/auth");
-        account.MapGet("/session", async (HttpContext context, InventoryDbContext db, UserManager<AppUser> users, IAntiforgery antiforgery, IConfiguration configuration) =>
+        account.MapGet("/session", async (HttpContext context, InventoryDbContext db, UserManager<AppUser> users, IAntiforgery antiforgery, IConfiguration configuration, IRecoveryEmail recoveryEmail) =>
         {
             var user = await users.GetUserAsync(context.User);
             var setupRequired = !await db.Users.AnyAsync(x => x.PasswordHash != null);
@@ -24,11 +24,28 @@ public static class AccountEndpoints
                 .FirstOrDefaultAsync(x => x.UserId == user.Id && x.WorkspaceId == DbSeeder.WorkspaceId);
             return Results.Ok(new {
                 user = user is not null && member is not null ? new { user.Id, user.Email, user.DisplayName, member.WorkspaceId } : null,
+                recoveryAvailable = recoveryEmail.IsConfigured,
                 setupRequired,
                 setupAvailable = setupRequired && configuration["AccountSetup:Code"] is { Length: >= 32 },
                 csrfToken = antiforgery.GetAndStoreTokens(context).RequestToken
             });
         });
+        account.MapPost("/recovery/request", async (RecoveryCodeRequest request, IRecoveryEmail mail, PasswordRecoveryService recovery, HttpContext context) =>
+        {
+            if (!mail.IsConfigured) return Results.Text("Recovery email needs to be configured on the server PC.", statusCode: 503);
+            if (string.IsNullOrWhiteSpace(request.Email) || request.Email.Length > 256) return Results.BadRequest("Enter your account email.");
+            await recovery.RequestAsync(request.Email, context.RequestAborted);
+            return Results.Ok(new { message = PasswordRecoveryService.RequestMessage });
+        }).RequireRateLimiting("recovery-request");
+        account.MapPost("/recovery/reset", async (RecoveryResetRequest request, PasswordRecoveryService recovery, HttpContext context, SignInManager<AppUser> signIn) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.Email) || request.Email.Length > 256 || request.Code is null || request.Code.Length > 32 || request.NewPassword is null || request.NewPassword.Length > 1024)
+                return Results.BadRequest("Enter your account email, recovery code, and new password.");
+            var error = await recovery.ResetAsync(request.Email, request.Code, request.NewPassword, context.RequestAborted);
+            if (error is not null) return Results.BadRequest(error);
+            await signIn.SignOutAsync();
+            return Results.NoContent();
+        }).RequireRateLimiting("recovery-reset");
         account.MapPost("/setup", SetupAsync).RequireRateLimiting("account");
         account.MapPost("/login", async (LoginRequest request, SignInManager<AppUser> signIn, UserManager<AppUser> users, InventoryDbContext db) =>
         {
@@ -87,3 +104,6 @@ public static class AccountEndpoints
 public sealed record LoginRequest(string Email, string Password, bool RememberMe);
 public sealed record SetupRequest(string Email, string DisplayName, string Password, string SetupCode);
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+
+public sealed record RecoveryCodeRequest(string Email);
+public sealed record RecoveryResetRequest(string Email, string Code, string NewPassword);

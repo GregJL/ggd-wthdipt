@@ -11,7 +11,7 @@ import type { AccountUser, ActivitySubject, InventoryItem, InventoryPhoto, Locat
 type Modal = 'account' | 'activity' | 'location' | 'item' | 'editItem' | 'editLocation' | 'moveItem' | 'moveLocation' | 'removeLocation' | 'history' | 'photos' | null;
 type PhotoTarget = { kind: 'item'; id: string; name: string } | { kind: 'location'; id: string; name: string };
 
-export default function App({ account, onSignOut }: { account: AccountUser; onSignOut: () => Promise<void> }) {
+export default function App({ account, onSignOut, onRecover }: { account: AccountUser; onSignOut: () => Promise<void>; onRecover: () => void }) {
   const [locations, setLocations] = useState<Location[]>([]);
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -259,7 +259,7 @@ export default function App({ account, onSignOut }: { account: AccountUser; onSi
     </main>
 
     <div className="actions"><button disabled={current?.status === 'inactive'} onClick={() => setModal('location')}><Plus size={20}/> Add location</button><button className="primary" disabled={!currentId || current?.status === 'inactive'} onClick={() => setModal('item')}><Plus size={20}/> Add item</button></div>
-    {modal === 'account' && <AccountSettings account={account} onSignOut={onSignOut} onClose={() => setModal(null)}/>}
+    {modal === 'account' && <AccountSettings account={account} onSignOut={onSignOut} onRecover={() => { setModal(null); onRecover(); }} onClose={() => setModal(null)}/>}
     {modal === 'activity' && <ActivityHistory subject={activitySubject} onClose={() => setModal(null)}/>}
     {modal === 'location' && <LocationForm parentName={current?.name ?? 'Your Home'} onCancel={() => setModal(null)} onSubmit={addLocation}/>} 
     {modal === 'editLocation' && current && <LocationForm parentName={locationPath(current.parentId, locations)} initial={current} onCancel={() => setModal(null)} onSubmit={editLocation}/>} 
