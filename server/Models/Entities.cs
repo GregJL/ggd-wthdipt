@@ -36,6 +36,7 @@ public sealed class Location {
     public LocationStatus Status { get; set; } = LocationStatus.Active;
     public bool IsMoveLocked { get; set; }
     public bool IsEditLocked { get; set; }
+    public bool IsStaging { get; set; }
     public string? Note { get; set; }
     public Workspace Workspace { get; set; } = null!;
     public Location? Parent { get; set; }
@@ -54,6 +55,8 @@ public sealed class InventoryItem {
     public bool IsMoveLocked { get; set; }
     public bool IsEditLocked { get; set; }
     public string? Note { get; set; }
+    public bool NeedsSorting { get; set; }
+    public Guid? PlannedLocationId { get; set; }
     public string? Category { get; set; }
     public string[] Tags { get; set; } = [];
     public string? Brand { get; set; }
@@ -71,6 +74,8 @@ public sealed class InventoryItem {
     public ICollection<InventoryPhoto> Photos { get; set; } = [];
 }
 
+public enum PhotoStage { General, Before, After }
+
 public sealed class InventoryPhoto {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid WorkspaceId { get; set; }
@@ -80,6 +85,7 @@ public sealed class InventoryPhoto {
     public required string OriginalFileName { get; set; }
     public required string ContentType { get; set; }
     public long SizeBytes { get; set; }
+    public PhotoStage Stage { get; set; }
     public string? Caption { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public InventoryItem? Item { get; set; }

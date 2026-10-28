@@ -188,8 +188,14 @@ namespace Ggd.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("NeedsSorting")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Note")
                         .HasColumnType("text");
+
+                    b.Property<Guid?>("PlannedLocationId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateOnly?>("PurchaseDate")
                         .HasColumnType("date");
@@ -227,6 +233,8 @@ namespace Ggd.Api.Migrations
 
                     b.HasIndex("LocationId");
 
+                    b.HasIndex("PlannedLocationId");
+
                     b.ToTable("Items");
                 });
 
@@ -258,6 +266,9 @@ namespace Ggd.Api.Migrations
 
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");
+
+                    b.Property<int>("Stage")
+                        .HasColumnType("integer");
 
                     b.Property<string>("StoredFileName")
                         .IsRequired()
@@ -322,6 +333,9 @@ namespace Ggd.Api.Migrations
                     b.Property<bool>("IsMoveLocked")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsStaging")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("Kind")
                         .HasColumnType("integer");
 
@@ -377,6 +391,49 @@ namespace Ggd.Api.Migrations
                     b.HasIndex("LocationId", "MovedAt");
 
                     b.ToTable("LocationMovements");
+                });
+
+            modelBuilder.Entity("Ggd.Api.Models.OrganizationTask", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsCompleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("ItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("LocationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("ReferenceName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkspaceId", "IsCompleted");
+
+                    b.ToTable("OrganizationTasks");
                 });
 
             modelBuilder.Entity("Ggd.Api.Models.PasswordRecovery", b =>
@@ -584,6 +641,11 @@ namespace Ggd.Api.Migrations
                         .HasForeignKey("LocationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Ggd.Api.Models.Location", null)
+                        .WithMany()
+                        .HasForeignKey("PlannedLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Location");
                 });

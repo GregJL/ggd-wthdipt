@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Archive, ArrowLeft, Box, Camera, ChevronRight, Clock3, ExternalLink, History, Home, Image as ImageIcon, Lock, MapPin, MoveRight, Pencil, PencilOff, Plus, RefreshCw, RotateCcw, Search, Trash2, Unlock, Upload, WifiOff, X } from 'lucide-react';
+import { Archive, ArrowLeft, Box, Camera, ChevronRight, ClipboardList, Clock3, ExternalLink, History, Home, Image as ImageIcon, Lock, MapPin, MoveRight, Pencil, PencilOff, Plus, RefreshCw, RotateCcw, Search, Trash2, Unlock, Upload, WifiOff, X } from 'lucide-react';
 import { WORKSPACE_ID } from './data/seed';
 import { store } from './data/store';
 import { applyPwaUpdate } from './pwa';
@@ -8,9 +8,11 @@ import ActivityHistory from './ActivityHistory';
 import AccountSettings from './AccountSettings';
 import ItemEditor from './ItemEditor';
 import ItemDetails from './ItemDetails';
-import type { ItemDraft, AccountUser, ActivitySubject, InventoryItem, InventoryPhoto, Location, LocationDeletionImpact, LocationStatus, MovementHistoryEntry } from './types';
+import OrganizationBoard from './OrganizationBoard';
+import OrganizationPlan from './OrganizationPlan';
+import type { PhotoStage, ItemDraft, AccountUser, ActivitySubject, InventoryItem, InventoryPhoto, Location, LocationDeletionImpact, LocationStatus, MovementHistoryEntry } from './types';
 
-type Modal = 'account' | 'activity' | 'location' | 'item' | 'editItem' | 'editLocation' | 'moveItem' | 'moveLocation' | 'removeLocation' | 'history' | 'photos' | null;
+type Modal = 'organizationPlan' | 'account' | 'activity' | 'location' | 'item' | 'editItem' | 'editLocation' | 'moveItem' | 'moveLocation' | 'removeLocation' | 'history' | 'photos' | null;
 type PhotoTarget = { kind: 'item'; id: string; name: string } | { kind: 'location'; id: string; name: string };
 
 export default function App({ account, onSignOut, onRecover }: { account: AccountUser; onSignOut: () => Promise<void>; onRecover: () => void }) {
@@ -19,6 +21,7 @@ export default function App({ account, onSignOut, onRecover }: { account: Accoun
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [organizationOpen, setOrganizationOpen] = useState(false);
   const [modal, setModal] = useState<Modal>(null);
   const [activitySubject, setActivitySubject] = useState<ActivitySubject | null>(null);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
@@ -69,9 +72,9 @@ export default function App({ account, onSignOut, onRecover }: { account: Accoun
 
   function openActivity(subject: ActivitySubject | null = null) { setActivitySubject(subject); setModal('activity'); }
   function goBack() { setCurrentId(current?.parentId ?? null); }
-  async function addLocation(name: string, type: Location['type'], status: LocationStatus, note: string) {
+  async function addLocation(name: string, type: Location['type'], status: LocationStatus, note: string, isStaging: boolean) {
     try {
-      const added = await store.addLocation({ workspaceId: WORKSPACE_ID, parentId: currentId, name, type, status, isMoveLocked: false, isEditLocked: false, note: note || undefined });
+      const added = await store.addLocation({ workspaceId: WORKSPACE_ID, parentId: currentId, name, type, status, isStaging, isMoveLocked: false, isEditLocked: false, note: note || undefined });
       setLocations((known) => [...known, added]); setModal(null);
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not add the location.'); }
   }
@@ -80,10 +83,10 @@ export default function App({ account, onSignOut, onRecover }: { account: Accoun
     const added = await store.addItem({ ...draft, workspaceId: WORKSPACE_ID, locationId: currentId, isMoveLocked: false, isEditLocked: false });
     setItems((known) => [...known, added]); setModal(null);
   }
-  async function editLocation(name: string, type: Location['type'], status: LocationStatus, note: string) {
+  async function editLocation(name: string, type: Location['type'], status: LocationStatus, note: string, isStaging: boolean) {
     if (!current) return;
     try {
-      const updated = await store.updateLocation({ ...current, name, type, status, note: note || undefined });
+      const updated = await store.updateLocation({ ...current, name, type, status, isStaging, note: note || undefined });
       setLocations((known) => known.map((location) => location.id === updated.id ? updated : location));
       setModal(null);
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not update the location.'); }
@@ -192,19 +195,32 @@ export default function App({ account, onSignOut, onRecover }: { account: Accoun
     try { setPhotos(await store.photos(WORKSPACE_ID, target.kind === 'item' ? { itemId: target.id } : { locationId: target.id })); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not load the photos.'); setModal(null); setPhotoTarget(null); }
   }
-  async function uploadPhoto(file: File, caption: string) {
+  async function uploadPhoto(file: File, caption: string, stage: PhotoStage) {
     if (!photoTarget) return;
-    const uploaded = await store.uploadPhoto(WORKSPACE_ID, photoTarget.kind === 'item' ? { itemId: photoTarget.id } : { locationId: photoTarget.id }, file, caption);
+    const uploaded = await store.uploadPhoto(WORKSPACE_ID, photoTarget.kind === 'item' ? { itemId: photoTarget.id } : { locationId: photoTarget.id }, file, caption, stage);
     setPhotos((known) => [uploaded, ...(known ?? [])]);
   }
-  async function updatePhoto(photo: InventoryPhoto, caption: string) {
-    const updated = await store.updatePhoto(WORKSPACE_ID, photo.id, caption);
+  async function updatePhoto(photo: InventoryPhoto, caption: string, stage: PhotoStage) {
+    const updated = await store.updatePhoto(WORKSPACE_ID, photo.id, caption, stage);
     setPhotos((known) => known?.map((candidate) => candidate.id === updated.id ? updated : candidate) ?? []);
   }
   async function deletePhoto(photo: InventoryPhoto) {
     if (!window.confirm(`Delete this photo${photo.caption ? ` (“${photo.caption}”)` : ''}? This cannot be undone.`)) return;
     await store.deletePhoto(WORKSPACE_ID, photo.id);
     setPhotos((known) => known?.filter((candidate) => candidate.id !== photo.id) ?? []);
+  }
+  async function saveOrganization(item: InventoryItem, needsSorting: boolean, plannedLocationId: string | null) {
+    const updated = await store.setOrganization(WORKSPACE_ID, item.id, needsSorting, plannedLocationId);
+    setItems((known) => known.map((candidate) => candidate.id === updated.id ? updated : candidate));
+  }
+  async function moveToPlan(item: InventoryItem) {
+    if (!item.plannedLocationId) return;
+    const moved = await store.moveItem(WORKSPACE_ID, item.id, item.plannedLocationId);
+    setItems((known) => known.map((candidate) => candidate.id === moved.id ? moved : candidate));
+  }
+  async function refreshInventory() {
+    const [nextLocations, nextItems] = await Promise.all([store.allLocations(WORKSPACE_ID), store.items(WORKSPACE_ID)]);
+    setLocations(nextLocations); setItems(nextItems);
   }
   function closePhotos() { setPhotos(null); setPhotoTarget(null); setModal(null); }
 
@@ -216,6 +232,7 @@ export default function App({ account, onSignOut, onRecover }: { account: Accoun
       <button className="search-filter-toggle" onClick={() => setSearchOpen(true)}>Search filters</button>
       <button className="search-filter-toggle" onClick={() => openActivity()}><Clock3 size={16}/> Activity history</button>
       <button className="search-filter-toggle" onClick={() => setModal('account')}>{account.displayName} · Account</button>
+      <button className="search-filter-toggle" onClick={() => setOrganizationOpen(true)}><ClipboardList size={16}/> Organize this shit</button>
     </header>
 
     <main>
@@ -223,7 +240,7 @@ export default function App({ account, onSignOut, onRecover }: { account: Accoun
       {updateAvailable && <div className="pwa-banner update-banner"><RefreshCw size={19}/><div><strong>An update is ready</strong><span>Reload to use the newest version.</span></div><button onClick={applyPwaUpdate}>Reload</button></div>}
       {error && <div className="error-banner" role="alert"><strong>Inventory connection problem</strong><span>{error}</span></div>}
       {loading && !locations.length && <div className="loading">Opening the inventory…</div>}
-      {searchOpen ? <InventorySearch items={items} locations={locations} query={query} loading={loading} pathForLocation={(id) => locationPath(id, locations)} onClose={() => { setQuery(''); setSearchOpen(false); }} onOpen={(id) => { setCurrentId(id); setShowArchived(true); setQuery(''); setSearchOpen(false); }} /> : <>
+      {organizationOpen ? <OrganizationBoard items={items} locations={locations} loading={loading} path={(id) => locationPath(id, locations)} onClose={() => setOrganizationOpen(false)} onOpen={(id) => { setCurrentId(id); setQuery(''); setSearchOpen(false); setShowArchived(true); setOrganizationOpen(false); }} onPlan={(item) => { setSelectedItem(item); setModal('organizationPlan'); }} onMove={moveToPlan} onSorted={(item) => saveOrganization(item, false, null)} onPhotos={(kind, id, name) => openPhotos({ kind, id, name })} onRefresh={refreshInventory}/> : searchOpen ? <InventorySearch items={items} locations={locations} query={query} loading={loading} pathForLocation={(id) => locationPath(id, locations)} onClose={() => { setQuery(''); setSearchOpen(false); }} onOpen={(id) => { setCurrentId(id); setShowArchived(true); setQuery(''); setSearchOpen(false); }} /> : <>
         <nav className="breadcrumb" aria-label="Breadcrumb">
           <button onClick={() => setCurrentId(null)}><Home size={17} /> Home</button>
           {crumbs.map((crumb) => <span key={crumb.id}><ChevronRight size={15}/><button onClick={() => setCurrentId(crumb.id)}>{crumb.name}</button></span>)}
@@ -246,18 +263,19 @@ export default function App({ account, onSignOut, onRecover }: { account: Accoun
 
         <div className="cards">
           {children.map((location) => <button className={`location-card ${location.status === 'inactive' ? 'archived-card' : ''}`} key={location.id} onClick={() => setCurrentId(location.id)}>
-            <span className="icon"><MapPin size={22}/></span><span><strong>{location.name}</strong><small>{location.type}{location.status !== 'active' ? ` · ${location.status}` : ''}</small></span><ChevronRight size={21}/>
+            <span className="icon"><MapPin size={22}/></span><span><strong>{location.name}</strong><small>{location.type}{location.isStaging ? ' · Staging area' : ''}{location.status !== 'active' ? ` · ${location.status}` : ''}</small></span><ChevronRight size={21}/>
           </button>)}
         </div>
 
         {current && <section className="items"><div className="items-title"><h3>Items here</h3><span>{visibleItems.length}</span></div>
-          {visibleItems.length ? visibleItems.map((item) => <article key={item.id}><Box size={22}/><div><strong>{item.name}</strong><small>Qty {item.quantity}{item.note ? ` · ${item.note}` : ''}</small><ItemDetails item={item}/></div><div className="item-actions"><button onClick={() => openActivity({ kind: 'item', id: item.id, name: item.name })} aria-label={`Activity history for ${item.name}`} title="Activity history"><Clock3 size={19}/></button><button onClick={() => openPhotos({ kind: 'item', id: item.id, name: item.name })} aria-label={`Photos for ${item.name}`} title="Photos"><Camera size={19}/></button><button onClick={() => openItemHistory(item)} aria-label={`Movement history for ${item.name}`} title="Movement history"><History size={19}/></button><button disabled={item.isEditLocked} onClick={() => { setSelectedItem(item); setModal('editItem'); }} aria-label={`Edit ${item.name}`} title={`Edit ${item.name}`}><Pencil size={19}/></button><button onClick={() => toggleItemEditLock(item)} aria-label={`${item.isEditLocked ? 'Unlock' : 'Lock'} editing for ${item.name}`} title={`${item.isEditLocked ? 'Unlock' : 'Lock'} editing`}>{item.isEditLocked ? <Pencil size={19}/> : <PencilOff size={19}/>}</button><button onClick={() => toggleItemLock(item)} aria-label={`${item.isMoveLocked ? 'Unlock' : 'Lock'} movement for ${item.name}`} title={`${item.isMoveLocked ? 'Unlock' : 'Lock'} movement`}>{item.isMoveLocked ? <Lock size={19}/> : <Unlock size={19}/>}</button><button disabled={item.isMoveLocked} onClick={() => { setSelectedItem(item); setModal('moveItem'); }} aria-label={`Move ${item.name}`} title={`Move ${item.name}`}><MoveRight size={19}/></button><button className="delete-item" onClick={() => deleteItem(item)} aria-label={`Delete ${item.name}`} title={`Delete ${item.name}`}><Trash2 size={19}/></button></div></article>) : <div className="empty"><Box size={32}/><p>Nothing inventoried here yet.</p><span>That does not mean nothing is hiding here.</span></div>}
+          {visibleItems.length ? visibleItems.map((item) => <article key={item.id}><Box size={22}/><div><strong>{item.name}</strong><small>Qty {item.quantity}{item.note ? ` · ${item.note}` : ''}</small><ItemDetails item={item}/>{item.needsSorting && <small className="organization-badge">Needs sorting</small>}{item.plannedLocationId && <small>Planned: {locationPath(item.plannedLocationId, locations)}</small>}</div><div className="item-actions"><button disabled={item.isEditLocked} onClick={() => { setSelectedItem(item); setModal('organizationPlan'); }} aria-label={`Organize ${item.name}`} title="Organize / plan destination" className="organize-item"><ClipboardList size={19}/><span>Organize</span></button><button onClick={() => openActivity({ kind: 'item', id: item.id, name: item.name })} aria-label={`Activity history for ${item.name}`} title="Activity history"><Clock3 size={19}/></button><button onClick={() => openPhotos({ kind: 'item', id: item.id, name: item.name })} aria-label={`Photos for ${item.name}`} title="Photos"><Camera size={19}/></button><button onClick={() => openItemHistory(item)} aria-label={`Movement history for ${item.name}`} title="Movement history"><History size={19}/></button><button disabled={item.isEditLocked} onClick={() => { setSelectedItem(item); setModal('editItem'); }} aria-label={`Edit ${item.name}`} title={`Edit ${item.name}`}><Pencil size={19}/></button><button onClick={() => toggleItemEditLock(item)} aria-label={`${item.isEditLocked ? 'Unlock' : 'Lock'} editing for ${item.name}`} title={`${item.isEditLocked ? 'Unlock' : 'Lock'} editing`}>{item.isEditLocked ? <Pencil size={19}/> : <PencilOff size={19}/>}</button><button onClick={() => toggleItemLock(item)} aria-label={`${item.isMoveLocked ? 'Unlock' : 'Lock'} movement for ${item.name}`} title={`${item.isMoveLocked ? 'Unlock' : 'Lock'} movement`}>{item.isMoveLocked ? <Lock size={19}/> : <Unlock size={19}/>}</button><button disabled={item.isMoveLocked} onClick={() => { setSelectedItem(item); setModal('moveItem'); }} aria-label={`Move ${item.name}`} title={`Move ${item.name}`}><MoveRight size={19}/></button><button className="delete-item" onClick={() => deleteItem(item)} aria-label={`Delete ${item.name}`} title={`Delete ${item.name}`}><Trash2 size={19}/></button></div></article>) : <div className="empty"><Box size={32}/><p>Nothing inventoried here yet.</p><span>That does not mean nothing is hiding here.</span></div>}
         </section>}
       </>}
     </main>
 
-    <div className="actions"><button disabled={current?.status === 'inactive'} onClick={() => setModal('location')}><Plus size={20}/> Add location</button><button className="primary" disabled={!currentId || current?.status === 'inactive'} onClick={() => setModal('item')}><Plus size={20}/> Add item</button></div>
-    {modal === 'account' && <AccountSettings account={account} onSignOut={onSignOut} onRecover={() => { setModal(null); onRecover(); }} onClose={() => setModal(null)}/>}
+    {!organizationOpen && <div className="actions"><button disabled={current?.status === 'inactive'} onClick={() => setModal('location')}><Plus size={20}/> Add location</button><button className="primary" disabled={!currentId || current?.status === 'inactive'} onClick={() => setModal('item')}><Plus size={20}/> Add item</button></div>}
+    {modal === 'organizationPlan' && selectedItem && <ModalFrame title={`Organize: ${selectedItem.name}`} subtitle="Plan first, move when ready." onCancel={() => { setModal(null); setSelectedItem(null); }}><OrganizationPlan item={selectedItem} locations={locations} path={(id) => locationPath(id, locations)} onSave={async (needsSorting, plannedLocationId) => { await saveOrganization(selectedItem, needsSorting, plannedLocationId); setModal(null); setSelectedItem(null); }}/></ModalFrame>}
+    {modal === 'account'  && <AccountSettings account={account} onSignOut={onSignOut} onRecover={() => { setModal(null); onRecover(); }} onClose={() => setModal(null)}/>}
     {modal === 'activity' && <ActivityHistory subject={activitySubject} onClose={() => setModal(null)}/>}
     {modal === 'location' && <LocationForm parentName={current?.name ?? 'Your Home'} onCancel={() => setModal(null)} onSubmit={addLocation}/>} 
     {modal === 'editLocation' && current && <LocationForm parentName={locationPath(current.parentId, locations)} initial={current} onCancel={() => setModal(null)} onSubmit={editLocation}/>} 
@@ -301,9 +319,10 @@ function ModalFrame({ title, subtitle, onCancel, children }: { title: string; su
   return <div className="modal-backdrop" onMouseDown={onCancel}><section className="modal" onMouseDown={(e) => e.stopPropagation()}><button className="close" onClick={onCancel}><X/></button><h2>{title}</h2><p>{subtitle}</p>{children}</section></div>;
 }
 
-function LocationForm({ parentName, initial, onCancel, onSubmit }: { parentName: string; initial?: Location; onCancel: () => void; onSubmit: (name: string, type: Location['type'], status: LocationStatus, note: string) => void }) {
+function LocationForm({ parentName, initial, onCancel, onSubmit }: { parentName: string; initial?: Location; onCancel: () => void; onSubmit: (name: string, type: Location['type'], status: LocationStatus, note: string, isStaging: boolean) => void }) {
+  const [isStaging, setIsStaging] = useState(initial?.isStaging ?? false);
   const [name, setName] = useState(initial?.name ?? ''); const [type, setType] = useState<Location['type']>(initial?.type ?? 'storage'); const [status, setStatus] = useState<LocationStatus>(initial?.status ?? 'active'); const [note, setNote] = useState(initial?.note ?? '');
-  return <ModalFrame title={initial ? 'Edit location' : 'Add a location'} subtitle={`Inside ${parentName}`} onCancel={onCancel}><form onSubmit={(e) => { e.preventDefault(); onSubmit(name.trim(), type, status, note.trim()); }}><label>Name<input required autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Cabinet, shelf, suspicious pile…"/></label><div className="form-row"><label>Type<select value={type} onChange={(e) => setType(e.target.value as Location['type'])}><option value="floor">Floor</option><option value="area">Area</option><option value="room">Room</option><option value="storage">Storage</option></select></label><label>Status<select value={status} onChange={(e) => setStatus(e.target.value as LocationStatus)}><option value="active">Active</option><option value="planned">Planned</option><option value="temporary">Temporary</option><option value="inactive">Inactive</option></select></label></div><label>Notes<textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything useful to remember"/></label><button className="submit">{initial ? 'Save changes' : 'Add location'}</button></form></ModalFrame>;
+  return <ModalFrame title={initial ? 'Edit location' : 'Add a location'} subtitle={`Inside ${parentName}`} onCancel={onCancel}><form onSubmit={(e) => { e.preventDefault(); onSubmit(name.trim(), type, status, note.trim(), isStaging); }}><label>Name<input required autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Cabinet, shelf, suspicious pile…"/></label><div className="form-row"><label>Type<select value={type} onChange={(e) => setType(e.target.value as Location['type'])}><option value="floor">Floor</option><option value="area">Area</option><option value="room">Room</option><option value="storage">Storage</option></select></label><label>Status<select value={status} onChange={(e) => setStatus(e.target.value as LocationStatus)}><option value="active">Active</option><option value="planned">Planned</option><option value="temporary">Temporary</option><option value="inactive">Inactive</option></select></label></div><label className="organization-check"><input type="checkbox" checked={isStaging} onChange={(e) => setIsStaging(e.target.checked)}/> Staging area for sorting and organizing</label><label>Notes<textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything useful to remember"/></label><button className="submit">{initial ? 'Save changes' : 'Add location'}</button></form></ModalFrame>;
 }
 
 function ItemForm({ locationName, initial, onCancel, onSubmit }: { locationName: string; initial?: InventoryItem; onCancel: () => void; onSubmit: (draft: ItemDraft) => Promise<void> }) {
@@ -318,7 +337,7 @@ function RemoveLocationForm({ location, impact, onCancel, onArchive, onDelete }:
       <section className="archive-option"><Archive size={25}/><div><h3>Archive location</h3><p>Hides it from normal browsing while preserving its contents, identity, and history. It can be restored later.</p></div><button type="button" onClick={onArchive}>Archive location</button></section>
       <section className="delete-option"><Trash2 size={25}/><div><h3>Delete permanently</h3><p>This cannot be undone. Permanent deletion is permitted only for an unused location with no contents or history.</p></div>
         {!impact ? <p className="impact-loading">Checking deletion safety…</p> : <>
-          {!impact.canDelete && <ul className="impact-list">{impact.isRoot && <li>Root locations cannot be deleted.</li>}{impact.childLocationCount > 0 && <li>Contains {impact.childLocationCount} child location{impact.childLocationCount === 1 ? '' : 's'}.</li>}{impact.itemCount > 0 && <li>Contains {impact.itemCount} item{impact.itemCount === 1 ? '' : 's'}.</li>}{impact.photoCount > 0 && <li>Contains {impact.photoCount} photo{impact.photoCount === 1 ? '' : 's'}.</li>}{impact.movementReferenceCount > 0 && <li>Appears in {impact.movementReferenceCount} movement record{impact.movementReferenceCount === 1 ? '' : 's'}.</li>}</ul>}
+          {!impact.canDelete && <ul className="impact-list">{impact.isRoot && <li>Root locations cannot be deleted.</li>}{impact.childLocationCount > 0 && <li>Contains {impact.childLocationCount} child location{impact.childLocationCount === 1 ? '' : 's'}.</li>}{impact.itemCount > 0 && <li>Contains {impact.itemCount} item{impact.itemCount === 1 ? '' : 's'}.</li>}{impact.photoCount > 0 && <li>Contains {impact.photoCount} photo{impact.photoCount === 1 ? '' : 's'}.</li>}{(impact.plannedItemCount ?? 0) > 0 && <li>Planned destination for {impact.plannedItemCount} item(s). Clear those plans first.</li>}{impact.movementReferenceCount > 0 && <li>Appears in {impact.movementReferenceCount} movement record{impact.movementReferenceCount === 1 ? '' : 's'}.</li>}</ul>}
           {impact.canDelete && <label>Type <strong>{location.name}</strong> to confirm<input value={confirmation} onChange={(e) => setConfirmation(e.target.value)} autoComplete="off"/></label>}
         </>}
         <button type="button" disabled={!impact?.canDelete || !matches} onClick={onDelete}>Delete permanently</button>
@@ -345,17 +364,35 @@ function formatMovementDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
 
-function PhotoModal({ target, photos, onCancel, onUpload, onUpdate, onDelete }: { target: PhotoTarget; photos: InventoryPhoto[] | null; onCancel: () => void; onUpload: (file: File, caption: string) => Promise<void>; onUpdate: (photo: InventoryPhoto, caption: string) => Promise<void>; onDelete: (photo: InventoryPhoto) => Promise<void> }) {
-  const [file, setFile] = useState<File | null>(null); const [caption, setCaption] = useState(''); const [busy, setBusy] = useState(false); const [localError, setLocalError] = useState('');
-  async function submit(e: React.FormEvent) { e.preventDefault(); if (!file) return; setBusy(true); setLocalError(''); try { await onUpload(file, caption.trim()); setFile(null); setCaption(''); const input = document.getElementById('photo-file') as HTMLInputElement | null; if (input) input.value = ''; } catch (reason) { setLocalError(reason instanceof Error ? reason.message : 'Could not upload the photo.'); } finally { setBusy(false); } }
+function PhotoStageSelect({ value, onChange }: { value: PhotoStage; onChange: (value: PhotoStage) => void }) {
+  return <label>Photo label<select value={value} onChange={(e) => onChange(e.target.value as PhotoStage)}><option value="general">General</option><option value="before">Before organizing</option><option value="after">After organizing</option></select></label>;
+}
+
+function PhotoModal({ target, photos, onCancel, onUpload, onUpdate, onDelete }: { target: PhotoTarget; photos: InventoryPhoto[] | null; onCancel: () => void; onUpload: (file: File, caption: string, stage: PhotoStage) => Promise<void>; onUpdate: (photo: InventoryPhoto, caption: string, stage: PhotoStage) => Promise<void>; onDelete: (photo: InventoryPhoto) => Promise<void> }) {
+  const [file, setFile] = useState<File | null>(null); const [caption, setCaption] = useState(''); const [stage, setStage] = useState<PhotoStage>('general');
+  const [filter, setFilter] = useState<PhotoStage | 'all'>('all'); const [busy, setBusy] = useState(false); const [localError, setLocalError] = useState('');
+  const visible = photos?.filter((photo) => filter === 'all' || (photo.stage ?? 'general') === filter) ?? [];
+  async function submit(e: React.FormEvent) {
+    e.preventDefault(); if (!file) return; setBusy(true); setLocalError('');
+    try { await onUpload(file, caption.trim(), stage); setFile(null); setCaption(''); setFilter('all'); const input = document.getElementById('photo-file') as HTMLInputElement | null; if (input) input.value = ''; }
+    catch (reason) { setLocalError(reason instanceof Error ? reason.message : 'Could not upload the photo.'); }
+    finally { setBusy(false); }
+  }
   return <ModalFrame title={`Photos: ${target.name}`} subtitle={`Add photos to this ${target.kind}.`} onCancel={onCancel}>
-    <form className="photo-upload" onSubmit={submit}><label className="camera-picker"><Camera size={24}/><span>{file ? file.name : 'Take or choose a photo'}</span><input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" onChange={(e) => setFile(e.target.files?.[0] ?? null)}/></label><label>Caption (optional)<input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="What are we looking at?"/></label>{localError && <p className="photo-error">{localError}</p>}<button className="submit" disabled={!file || busy}><Upload size={18}/>{busy ? 'Uploading…' : 'Add photo'}</button></form>
-    {photos === null ? <div className="history-loading"><ImageIcon size={24}/> Loading photos…</div> : photos.length === 0 ? <div className="history-empty"><ImageIcon size={30}/><strong>No photos yet</strong><span>The photographic evidence begins here.</span></div> : <div className="photo-grid">{photos.map((photo) => <PhotoCard key={photo.id} photo={photo} onUpdate={onUpdate} onDelete={onDelete}/>)}</div>}
+    <form className="photo-upload" onSubmit={submit}><label className="camera-picker"><Camera size={24}/><span>{file ? file.name : 'Take or choose a photo'}</span><input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" onChange={(e) => setFile(e.target.files?.[0] ?? null)}/></label><label>Caption (optional)<input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="What are we looking at?"/></label><PhotoStageSelect value={stage} onChange={setStage}/>{localError && <p className="photo-error" role="alert">{localError}</p>}<button className="submit" disabled={!file || busy}><Upload size={18}/>{busy ? 'Uploading…' : 'Add photo'}</button></form>
+    <label className="photo-stage-filter">Show photos<select value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}><option value="all">All photos</option><option value="before">Before organizing</option><option value="after">After organizing</option><option value="general">General</option></select></label>
+    {photos === null ? <div className="history-loading"><ImageIcon size={24}/> Loading photos…</div> : photos.length === 0 ? <div className="history-empty"><ImageIcon size={30}/><strong>No photos yet</strong><span>The photographic evidence begins here.</span></div> : visible.length === 0 ? <p>No photos with this label yet.</p> : <div className="photo-grid">{visible.map((photo) => <PhotoCard key={photo.id} photo={photo} onUpdate={onUpdate} onDelete={onDelete}/>)}</div>}
   </ModalFrame>;
 }
 
-function PhotoCard({ photo, onUpdate, onDelete }: { photo: InventoryPhoto; onUpdate: (photo: InventoryPhoto, caption: string) => Promise<void>; onDelete: (photo: InventoryPhoto) => Promise<void> }) {
-  const [editing, setEditing] = useState(false); const [caption, setCaption] = useState(photo.caption ?? '');
+function PhotoCard({ photo, onUpdate, onDelete }: { photo: InventoryPhoto; onUpdate: (photo: InventoryPhoto, caption: string, stage: PhotoStage) => Promise<void>; onDelete: (photo: InventoryPhoto) => Promise<void> }) {
+  const [editing, setEditing] = useState(false); const [caption, setCaption] = useState(photo.caption ?? ''); const [stage, setStage] = useState<PhotoStage>(photo.stage ?? 'general');
+  const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const url = store.photoUrl(photo.contentUrl);
-  return <article className="photo-card"><a href={url} target="_blank" rel="noreferrer" title="Open full-size photo"><img src={url} alt={photo.caption || photo.originalFileName}/><span><ExternalLink size={15}/> Full size</span></a>{editing ? <form onSubmit={async (e) => { e.preventDefault(); await onUpdate(photo, caption.trim()); setEditing(false); }}><input value={caption} onChange={(e) => setCaption(e.target.value)} autoFocus/><button className="small-save">Save</button></form> : <p>{photo.caption || <em>No caption</em>}</p>}<small>{new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(photo.createdAt))}</small><div className="photo-actions"><button onClick={() => setEditing((value) => !value)}><Pencil size={17}/> {editing ? 'Cancel' : 'Caption'}</button><button className="delete-photo" onClick={() => onDelete(photo)}><Trash2 size={17}/> Delete</button></div></article>;
+  return <article className="photo-card"><a href={url} target="_blank" rel="noreferrer" title="Open full-size photo"><img src={url} alt={photo.caption || photo.originalFileName}/><span><ExternalLink size={15}/> Full size</span></a>
+    <span className="organization-badge">{photo.stage ?? 'general'}</span>
+    {editing ? <form onSubmit={async (e) => { e.preventDefault(); setBusy(true); setError(''); try { await onUpdate(photo, caption.trim(), stage); setEditing(false); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not save photo details.'); } finally { setBusy(false); } }}><label>Caption<input value={caption} onChange={(e) => setCaption(e.target.value)} autoFocus/></label><PhotoStageSelect value={stage} onChange={setStage}/><button className="small-save" disabled={busy}>Save</button></form> : <p>{photo.caption || <em>No caption</em>}</p>}
+    {error && <p role="alert">{error}</p>}<small>{new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(photo.createdAt))}</small>
+    <div className="photo-actions"><button disabled={busy} onClick={() => { setCaption(photo.caption ?? ''); setStage(photo.stage ?? 'general'); setEditing((value) => !value); setError(''); }}><Pencil size={17}/> {editing ? 'Cancel' : 'Details'}</button><button className="delete-photo" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await onDelete(photo); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not delete the photo.'); } finally { setBusy(false); } }}><Trash2 size={17}/> Delete</button></div>
+  </article>;
 }
