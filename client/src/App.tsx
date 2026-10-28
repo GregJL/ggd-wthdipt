@@ -3,6 +3,7 @@ import { Archive, ArrowLeft, Box, Camera, ChevronRight, Clock3, ExternalLink, Hi
 import { WORKSPACE_ID } from './data/seed';
 import { store } from './data/store';
 import { applyPwaUpdate } from './pwa';
+import InventorySearch from './InventorySearch';
 import type { InventoryItem, InventoryPhoto, Location, LocationDeletionImpact, LocationStatus, MovementHistoryEntry } from './types';
 
 type Modal = 'location' | 'item' | 'editItem' | 'editLocation' | 'moveItem' | 'moveLocation' | 'removeLocation' | 'history' | 'photos' | null;
@@ -13,6 +14,7 @@ export default function App() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [modal, setModal] = useState<Modal>(null);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,13 +40,6 @@ export default function App() {
     return result;
   }, [current, locations]);
   const visibleItems = items.filter((item) => item.locationId === currentId);
-  const searchTerm = query.trim().toLocaleLowerCase();
-  const matchingItems = searchTerm
-    ? items.filter((item) => `${item.name} ${item.note ?? ''}`.toLocaleLowerCase().includes(searchTerm))
-    : [];
-  const matchingLocations = searchTerm
-    ? locations.filter((location) => `${location.name} ${location.note ?? ''}`.toLocaleLowerCase().includes(searchTerm))
-    : [];
 
   useEffect(() => {
     let cancelled = false;
@@ -215,7 +210,8 @@ export default function App() {
     <header>
       <div className="eyebrow">Greg's giant database of</div>
       <h1>Where the hell did I put that?</h1>
-      <label className="search"><Search size={20} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find anything…" aria-label="Search inventory" />{query && <button onClick={() => setQuery('')} aria-label="Clear search"><X size={18}/></button>}</label>
+      <label className="search"><Search size={20} /><input value={query} onChange={(e) => { setQuery(e.target.value); if (e.target.value.trim()) setSearchOpen(true); }} placeholder="Find anything…" aria-label="Search inventory" />{query && <button onClick={() => setQuery('')} aria-label="Clear search"><X size={18}/></button>}</label>
+      <button className="search-filter-toggle" onClick={() => setSearchOpen(true)}>Search filters</button>
     </header>
 
     <main>
@@ -223,7 +219,7 @@ export default function App() {
       {updateAvailable && <div className="pwa-banner update-banner"><RefreshCw size={19}/><div><strong>An update is ready</strong><span>Reload to use the newest version.</span></div><button onClick={applyPwaUpdate}>Reload</button></div>}
       {error && <div className="error-banner" role="alert"><strong>Inventory connection problem</strong><span>{error}</span></div>}
       {loading && !locations.length && <div className="loading">Opening the inventory…</div>}
-      {searchTerm ? <SearchResults items={matchingItems} matches={matchingLocations} locations={locations} onOpen={(id) => { setCurrentId(id); setShowArchived(true); setQuery(''); }} /> : <>
+      {searchOpen ? <InventorySearch items={items} locations={locations} query={query} loading={loading} pathForLocation={(id) => locationPath(id, locations)} onClose={() => { setQuery(''); setSearchOpen(false); }} onOpen={(id) => { setCurrentId(id); setShowArchived(true); setQuery(''); setSearchOpen(false); }} /> : <>
         <nav className="breadcrumb" aria-label="Breadcrumb">
           <button onClick={() => setCurrentId(null)}><Home size={17} /> Home</button>
           {crumbs.map((crumb) => <span key={crumb.id}><ChevronRight size={15}/><button onClick={() => setCurrentId(crumb.id)}>{crumb.name}</button></span>)}
@@ -293,23 +289,6 @@ function isAvailableLocation(id: string, locations: Location[]): boolean {
     cursor = locations.find((location) => location.id === cursor?.parentId);
   }
   return true;
-}
-
-function SearchResults({ items, matches, locations, onOpen }: { items: InventoryItem[]; matches: Location[]; locations: Location[]; onOpen: (id: string) => void }) {
-  const count = items.length + matches.length;
-  return <section className="search-results">
-    <div className="section-heading"><div><h2>Search results</h2><p>{count ? `${count} result${count === 1 ? '' : 's'} found.` : 'Nothing matched. Try another name or note.'}</p></div></div>
-    {matches.length > 0 && <section aria-label="Matching locations"><h3>Locations <span>{matches.length}</span></h3><div className="cards">
-      {matches.map((location) => <button className={`location-card ${!isAvailableLocation(location.id, locations) ? 'archived-card' : ''}`} key={location.id} onClick={() => onOpen(location.id)}>
-        <span className="icon"><MapPin size={22}/></span><span><strong>{location.name}</strong><small>{locationPath(location.id, locations)}{!isAvailableLocation(location.id, locations) ? ' · Archived' : ''}</small></span><ChevronRight size={21}/>
-      </button>)}
-    </div></section>}
-    {items.length > 0 && <section aria-label="Matching items"><h3>Items <span>{items.length}</span></h3><div className="cards">
-      {items.map((item) => <button className={`location-card ${!isAvailableLocation(item.locationId, locations) ? 'archived-card' : ''}`} key={item.id} onClick={() => onOpen(item.locationId)}>
-        <span className="icon"><Box size={22}/></span><span><strong>{item.name}</strong><small>{locationPath(item.locationId, locations)} · Qty {item.quantity}{!isAvailableLocation(item.locationId, locations) ? ' · Archived' : ''}</small></span><ChevronRight size={21}/>
-      </button>)}
-    </div></section>}
-  </section>;
 }
 
 function ModalFrame({ title, subtitle, onCancel, children }: { title: string; subtitle: string; onCancel: () => void; children: React.ReactNode }) {

@@ -254,6 +254,13 @@ items.MapDelete("/{id:guid}", async (Guid id, Guid workspaceId, InventoryDbConte
 });
 
 var photos = app.MapGroup("/api/photos");
+photos.MapGet("/targets", async (Guid workspaceId, InventoryDbContext db) =>
+{
+    var query = db.Photos.AsNoTracking().Where(x => x.WorkspaceId == workspaceId);
+    var itemIds = await query.Where(x => x.ItemId != null).Select(x => x.ItemId!.Value).Distinct().ToListAsync();
+    var locationIds = await query.Where(x => x.LocationId != null).Select(x => x.LocationId!.Value).Distinct().ToListAsync();
+    return Results.Ok(new { itemIds, locationIds });
+});
 photos.MapGet("/", async (Guid workspaceId, Guid? itemId, Guid? locationId, InventoryDbContext db) =>
 {
     if ((itemId is null) == (locationId is null)) return Results.BadRequest("Choose exactly one item or location.");

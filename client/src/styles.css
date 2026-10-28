@@ -109,3 +109,13 @@ form { display: grid; gap: 15px; } form label { display: grid; gap: 6px; font-si
 .search-results h3 span { font-size: .85rem; color: #69756f; }
 .search-results .location-card > span:nth-child(2) { min-width: 0; }
 .search-results .location-card small { overflow-wrap: anywhere; text-transform: none; line-height: 1.4; }
+
+.search-filter-toggle { margin-top: 10px; background: transparent; color: #fff; border: 1px solid #ffffff55; border-radius: 8px; padding: 9px 12px; }
+.search-filters { margin: 0; border: 1px solid #d9d5cb; border-radius: 14px; padding: 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.search-filters legend { font-weight: 700; padding: 0 6px; }
+.search-filters label { display: grid; gap: 5px; font-size: .9rem; min-width: 0; }
+.search-filters select { width: 100%; min-width: 0; padding: 10px 6px; border: 1px solid #aaa; border-radius: 8px; background: #fffdf8; color: #1c2924; }
+.search-filters p { grid-column: 1 / -1; margin: 0; font-size: .85rem; line-height: 1.4; color: #69756f; }
+.search-reset, .search-close { padding: 9px 12px; border: 1px solid #d9d5cb; background: #fffdf8; border-radius: 8px; color: #1c2924; }
+.search-reset { justify-self: start; }
+@media (min-width: 640px) { .search-filters { grid-template-columns: repeat(4, minmax(0, 1fr)); } }

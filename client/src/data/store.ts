@@ -1,3 +1,4 @@
+import type { PhotoTargets } from '../searchFilters';
 import type { InventoryItem, InventoryPhoto, Location, LocationDeletionImpact, MovementHistoryEntry } from '../types';
 
 const developmentApiPort = window.location.protocol === 'https:' ? '5001' : '5000';
@@ -21,6 +22,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const store = {
+  photoTargets(workspaceId: string): Promise<PhotoTargets> {
+    return request<PhotoTargets>(`/photos/targets?${new URLSearchParams({ workspaceId })}`);
+  },
   locations(workspaceId: string, parentId: string | null): Promise<Location[]> {
     const query = new URLSearchParams({ workspaceId });
     if (parentId) query.set('parentId', parentId);
