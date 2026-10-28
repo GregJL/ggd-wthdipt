@@ -1,11 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+import AccountGate from './AccountGate';
 import './styles.css';
 import { registerPwa } from './pwa';
 
 registerPwa();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode><App /></React.StrictMode>,
+  <React.StrictMode><AccountGate /></React.StrictMode>,
 );

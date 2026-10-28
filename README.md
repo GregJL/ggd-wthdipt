@@ -135,7 +135,7 @@ To open the app from a phone:
 4. On the phone, open `http://YOUR-PC-IP:5173`—for example, `http://192.168.1.42:5173`.
 5. If Windows Defender Firewall asks, allow access on **Private networks** only. Do not enable Public-network access.
 
-The API accepts development-client requests only from `localhost` or private-network IP addresses on port 5173. This is development access for the trusted home network, not internet hosting. There is no authentication yet, so do not expose ports 5000 or 5173 through the router.
+The API accepts development-client requests only from `localhost` or private-network IP addresses on port 5173. This is development access for the trusted home network, not internet hosting. Sign-in and household membership are enforced by the API. Use the HTTPS development configuration below for account access.
 
 ## Progressive Web App
 
@@ -283,8 +283,7 @@ Names, paths, and changed values are saved with each event. Activity has no fore
 keys to inventory entities, so deleting an item or location does not delete its
 activity. Inventory changes and their activity save in the same database transaction.
 Direct database edits are outside this application history. Recording starts with
-this version; older movement records remain under **Movement history**. Individual
-user attribution will require the future authentication work.
+this version; older movement records remain under **Movement history**. New entries include the signed-in user. Earlier entries retain “User not recorded.”
 
 ### Install this version
 
@@ -318,3 +317,57 @@ currently stored anywhere inside that hierarchy. This uses stable IDs, so existi
 entries appear without another edit, and renaming locations does not break the view.
 When an item is moved out or deleted, its history remains in **All inventory activity**;
 the location view reflects current contents.
+
+
+## Your account and sign-in
+
+ASP.NET Core Identity uses the existing owner record and household membership.
+Setup keeps the owner's ID and all inventory. Each device signs in through the
+HTTPS app. **Account** in the header offers password changes and sign-out.
+
+### Install accounts after merging
+
+```powershell
+cd D:\ggd-wthdipt
+git pull
+.\stop-background-ggd.cmd
+powershell -NoProfile -ExecutionPolicy Bypass -File .\configure-account-setup.ps1
+dotnet ef database update --project server
+.\publish-ggd.cmd
+.\start-background-ggd.cmd
+```
+
+Keep the generated setup code visible, open `https://localhost:5001`, and reload
+if needed. Enter your display name, email, a password of at least 12 characters,
+and the code. Set the password in the app; the setup script only generates a code.
+The code is stored in .NET User Secrets, and setup closes once the first account
+has a password. Password changes require the current password.
+
+The migration adds Identity fields/tables and nullable activity actor fields;
+it retains the existing Users table, IDs, household data, and prior migrations.
+Old activity stays unattributed. New actor IDs/names come from the server's
+signed-in user, and their snapshots survive inventory deletion.
+
+Sessions use Secure, HttpOnly, SameSite=Strict cookies. API reads and writes,
+including photos and history, require household membership. Mutations also require
+an antiforgery token. Failed logins lock the account for 15 minutes after five
+failures; account endpoints also limit repeated requests. Sign-in requires HTTPS.
+Browser storage is not used for passwords or authentication tokens.
+
+Session encryption keys persist under the Windows account's Local Application Data
+in `GGD-WTHDIPT\DataProtection-Keys`, protected by Windows DPAPI. Publishing does not
+replace them. Database backups include account password hashes and activity;
+restoring without the session keys simply requires signing in again.
+
+### Authentication regression checks
+
+```powershell
+dotnet run --project tests/Ggd.AuthTests
+dotnet run --project tests/Ggd.ActivityTests
+```
+
+Authentication checks run the real HTTP endpoints against disposable SQLite data.
+They cover first-owner setup, the setup code, duplicate setup, password hashing and
+changes, secure sessions, antiforgery checks, household isolation (including mismatched
+or case-variant JSON/query IDs), actor spoofing, legacy history, photo access,
+login/logout, and failed-login lockout. They do not modify the home database.

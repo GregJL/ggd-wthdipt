@@ -51,7 +51,7 @@ export default function ActivityHistory({ subject, onClose }: { subject: Activit
     <ol className="activity-list">
       {entries.map((entry) => <li key={entry.id}><Clock3 size={18}/><div>
         <time dateTime={entry.recordedAt}>{new Date(entry.recordedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time>
-        <strong>{entry.summary}</strong><span className="activity-path">{entry.locationPath}</span>
+        <strong>{entry.summary}</strong><span className="activity-actor">{entry.actorName ?? 'User not recorded'}</span><span className="activity-path">{entry.locationPath}</span>
         {entry.details && <details><summary>Details</summary><p>{entry.details}</p></details>}
       </div></li>)}
     </ol>

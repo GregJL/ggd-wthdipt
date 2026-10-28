@@ -1,8 +1,9 @@
+using Microsoft.AspNetCore.Identity;
+
 namespace Ggd.Api.Models;
 
-public sealed class AppUser {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public required string Email { get; set; }
+public sealed class AppUser : IdentityUser<Guid> {
+    public AppUser() { Id = Guid.NewGuid(); }
     public string DisplayName { get; set; } = "";
     public ICollection<WorkspaceMember> Memberships { get; set; } = [];
 }
